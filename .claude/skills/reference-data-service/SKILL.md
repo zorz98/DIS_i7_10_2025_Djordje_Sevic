@@ -27,6 +27,9 @@ sinhrono. Seed podaci: [`docs/business-logic.md`](../../../docs/business-logic.m
   `ReferenceDataDbContext.OnModelCreating`, ne runtime insert.
 - Ako se doda nova kategorija ovde, proveri da `docs/business-logic.md` tabela
   ostane sinhronizovana.
+- Servis se registruje u Consul (`GreenFinance.ServiceDiscovery`) i izlaže `/metrics`
+  (`GreenFinance.Observability`) — nema sopstveni business meter, samo ugrađene
+  ASP.NET Core/HTTP/runtime metrike.
 
 ## Testovi
 

@@ -7,8 +7,11 @@ ESG procena finansijskih transakcija — mikroservisni sistem u .NET-u.
 - **.NET 10**, ASP.NET Core Web API (Controllers)
 - **EF Core 10 + SQL Server** — jedna instanca, logički odvojena baza po servisu
 - **MassTransit + RabbitMQ** — asinhrona komunikacija (events)
-- **YARP** — API Gateway / reverse proxy
-- **Polly** — retry + circuit breaker (ESGService → ReferenceDataService)
+- **YARP** — API Gateway / reverse proxy, sa dinamičkim destinacijama iz Consul-a
+- **Polly** — retry + circuit breaker + timeout (ESGService → ReferenceDataService)
+- **Consul** — service discovery (registracija + health check po servisu)
+- **OpenTelemetry + Prometheus + Grafana** — metrike i alarmiranje (email preko MailHog)
+- **Datadog Agent** — centralizovano logovanje (JSON logovi po kontejneru)
 - **Docker + Docker Compose** — kontejnerizacija i lokalna orkestracija
 - **xUnit + FluentAssertions + Moq** — unit testovi; **Testcontainers** — integration testovi
 - **GitHub Actions** (CI/CD) + **GitHub Container Registry** (ghcr.io)

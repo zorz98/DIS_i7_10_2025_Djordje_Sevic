@@ -33,6 +33,18 @@ primer: [`docs/business-logic.md`](../../../docs/business-logic.md#esgservice--i
   — ne menjaj ovo ponašanje bez ažuriranja `docs/business-logic.md`.
 - RabbitMQ/HTTP baza adresa se čita lenjo unutar `UsingRabbitMq`/`AddHttpClient`
   callback-a u `Program.cs`, ne eager u promenljivu pre registracije servisa.
+- **NIKAD ne postavljaj `HttpClient.Timeout`** na `IReferenceDataClient`-ovom
+  HttpClient-u. Baca običan `TaskCanceledException` koji Polly-jev podrazumevani
+  predikat ne prepoznaje kao tranzijentnu grešku, pa Retry/CircuitBreaker tiho nikad
+  ne bi bili aktivirani (stvaran bag, otkriven tek preko `esg_referencedata_circuit_state`
+  metrike u DIS-26 — gauge je ostajao "closed" i pored ponovljenih pada
+  ReferenceDataService-a). Timeout ide isključivo kroz Polly-jevu `pipeline.AddTimeout(...)`
+  strategiju (innermost, posle Retry i CircuitBreaker u `AddResilienceHandler`), čiji
+  `TimeoutRejectedException` Polly prepoznaje kao tranzijentan.
+- `EsgMetrics` (Domain) drži circuit breaker gauge (`esg.referencedata.circuit_state`)
+  i brojače `esg.results.calculated`/`esg.results.unavailable` — ažuriraj ga preko
+  `SetCircuitOpen/Closed/HalfOpen()` iz Polly `OnOpened`/`OnClosed`/`OnHalfOpened`
+  callback-ova u `Program.cs`, ne dodaji paralelni mehanizam za praćenje stanja.
 
 ## Testovi
 
