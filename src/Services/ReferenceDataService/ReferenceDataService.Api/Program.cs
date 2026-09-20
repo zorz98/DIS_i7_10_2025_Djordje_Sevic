@@ -20,7 +20,11 @@ builder.Services.AddStackExchangeRedisCache(options =>
     options.Configuration = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
 });
 
-builder.Services.AddScoped<IEmissionFactorRepository, EmissionFactorRepository>();
+builder.Services.AddScoped<EmissionFactorRepository>();
+builder.Services.AddScoped<IEmissionFactorRepository>(sp => new CachedEmissionFactorRepository(
+    sp.GetRequiredService<EmissionFactorRepository>(),
+    sp.GetRequiredService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>(),
+    sp.GetRequiredService<ILogger<CachedEmissionFactorRepository>>()));
 builder.Services.AddConsulServiceDiscovery(builder.Configuration);
 builder.Services.AddGreenFinanceMetrics("ReferenceDataService");
 
