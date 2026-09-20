@@ -2,6 +2,8 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["src/ApiGateway/ApiGateway.csproj", "src/ApiGateway/"]
+COPY ["src/BuildingBlocks/GreenFinance.ServiceDiscovery/GreenFinance.ServiceDiscovery.csproj", "src/BuildingBlocks/GreenFinance.ServiceDiscovery/"]
+COPY ["src/BuildingBlocks/GreenFinance.Observability/GreenFinance.Observability.csproj", "src/BuildingBlocks/GreenFinance.Observability/"]
 RUN dotnet restore "src/ApiGateway/ApiGateway.csproj"
 
 COPY . .

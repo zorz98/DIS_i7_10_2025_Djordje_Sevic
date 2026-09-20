@@ -31,7 +31,12 @@ slanja emaila). Detalji: [`docs/business-logic.md`](../../../docs/business-logic
   ne baca izuzetak za "normalan" slučaj.
 - Ako se doda pravo slanje (SMTP/email) ovo postaje bonus stavka van osnovne
   verzije — pre nego što se doda, proveri `docs/business-logic.md`/plan da li je to
-  još uvek van obima.
+  još uvek van obima. (Mail alarm koji **već postoji** je operativni Grafana→MailHog
+  alert na ESGService circuit breaker, ne ESG poslovna notifikacija — vidi
+  `docs/architecture.md#monitoring-i-alarmiranje-prometheus-grafana`.)
+- Servis se registruje u Consul (`GreenFinance.ServiceDiscovery`) i izlaže `/metrics`
+  (`GreenFinance.Observability`, uklj. `NotificationMetrics` brojač
+  `notifications.sent`, ažuriran u `NotificationDecisionService.ProcessAsync`).
 
 ## Testovi
 

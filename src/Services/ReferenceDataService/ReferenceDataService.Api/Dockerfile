@@ -4,6 +4,8 @@ WORKDIR /src
 COPY ["src/Services/ReferenceDataService/ReferenceDataService.Api/ReferenceDataService.Api.csproj", "src/Services/ReferenceDataService/ReferenceDataService.Api/"]
 COPY ["src/Services/ReferenceDataService/ReferenceDataService.Domain/ReferenceDataService.Domain.csproj", "src/Services/ReferenceDataService/ReferenceDataService.Domain/"]
 COPY ["src/Services/ReferenceDataService/ReferenceDataService.Infrastructure/ReferenceDataService.Infrastructure.csproj", "src/Services/ReferenceDataService/ReferenceDataService.Infrastructure/"]
+COPY ["src/BuildingBlocks/GreenFinance.ServiceDiscovery/GreenFinance.ServiceDiscovery.csproj", "src/BuildingBlocks/GreenFinance.ServiceDiscovery/"]
+COPY ["src/BuildingBlocks/GreenFinance.Observability/GreenFinance.Observability.csproj", "src/BuildingBlocks/GreenFinance.Observability/"]
 RUN dotnet restore "src/Services/ReferenceDataService/ReferenceDataService.Api/ReferenceDataService.Api.csproj"
 
 COPY . .

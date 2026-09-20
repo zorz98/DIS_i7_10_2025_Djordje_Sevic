@@ -1,6 +1,6 @@
 namespace NotificationService.Domain;
 
-public sealed class NotificationDecisionService(INotificationRepository repository)
+public sealed class NotificationDecisionService(INotificationRepository repository, NotificationMetrics metrics)
 {
     /// <summary>Returns the created notification, or null when the ESG score does not warrant one.</summary>
     public async Task<Notification?> ProcessAsync(
@@ -13,6 +13,7 @@ public sealed class NotificationDecisionService(INotificationRepository reposito
 
         var notification = Notification.ForLowEsgScore(transactionId, companyId, overallScore);
         await repository.AddAsync(notification, cancellationToken);
+        metrics.RecordSent();
         return notification;
     }
 }

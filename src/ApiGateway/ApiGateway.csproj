@@ -7,7 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Consul" Version="1.8.0" />
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BuildingBlocks\GreenFinance.ServiceDiscovery\GreenFinance.ServiceDiscovery.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\GreenFinance.Observability\GreenFinance.Observability.csproj" />
   </ItemGroup>
 
 </Project>

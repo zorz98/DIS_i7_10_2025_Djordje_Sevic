@@ -33,11 +33,28 @@ cp deploy/.env.example deploy/.env
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up --build
 ```
 
-Ovo podiže: SQL Server, RabbitMQ, svih 5 mikroservisa i API Gateway. Nakon starta:
+Ovo podiže: SQL Server, RabbitMQ, Consul, svih 5 mikroservisa, API Gateway, i
+observability stack (Prometheus, Grafana, MailHog, Datadog Agent). Nakon starta:
 
 - Gateway: `http://localhost:8080`
 - RabbitMQ management UI: `http://localhost:15672` (guest/guest)
 - Pojedinačni servisi (za debug, mimo gateway-a): `8081`–`8085`
+- Consul UI (service discovery katalog/health): `http://localhost:8500`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` (admin/admin) — dashboard "GreenFinance Overview"
+- MailHog (inbox za alert email-ove): `http://localhost:8025`
+
+Za centralizovano logovanje preko Datadog-a, dodaj svoj pravi API ključ u
+**lokalni** `deploy/.env` (nikad u `.env.example`, koji se prati git-om):
+
+```
+DD_API_KEY=<tvoj-datadog-api-key>
+DD_SITE=datadoghq.com   # ili eu/us3/us5/ap1 zavisno od regiona naloga
+```
+
+Bez validnog ključa, Datadog Agent i dalje normalno starta (i lokalno je vidljiv
+preko `docker logs greenfinance-datadog-agent`), samo neće uspeti da isporuči
+telemetriju ka Datadog-u.
 
 Primer end-to-end provere:
 
@@ -48,6 +65,16 @@ curl -X POST http://localhost:8080/transactions \
 
 curl http://localhost:8080/esg/transaction/<vraceni-id>
 curl "http://localhost:8080/reports/company/12?month=9&year=2026"
+```
+
+Provera circuit breaker alarma (Grafana → email preko MailHog):
+
+```bash
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml stop reference-data-service
+# napravi par POST /transactions zahteva (kao gore) da ESGService pokuša da
+# pozove ReferenceDataService i circuit se otvori (esg_referencedata_circuit_state=1)
+# posle ~1 min proveri http://localhost:8025 (MailHog) — treba da stigne "FIRING" email
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml start reference-data-service
 ```
 
 Gašenje i čišćenje:

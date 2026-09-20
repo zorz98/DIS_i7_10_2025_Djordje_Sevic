@@ -33,18 +33,32 @@ services:
     networks:
       - greenfinance-network
 
+  consul:
+    image: hashicorp/consul:1.19
+    container_name: greenfinance-consul
+    command: "agent -dev -client=0.0.0.0"
+    ports:
+      - "8500:8500"
+    networks:
+      - greenfinance-network
+
   reference-data-service:
     build:
       context: ..
       dockerfile: src/Services/ReferenceDataService/ReferenceDataService.Api/Dockerfile
     container_name: greenfinance-reference-data-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "reference-data-service"}]'
     environment:
       ConnectionStrings__ReferenceDataDb: "Server=sqlserver,1433;Database=ReferenceDataDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+      Consul__Host: "consul"
     ports:
       - "8081:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
+      consul:
+        condition: service_started
     networks:
       - greenfinance-network
 
@@ -53,11 +67,14 @@ services:
       context: ..
       dockerfile: src/Services/TransactionService/TransactionService.Api/Dockerfile
     container_name: greenfinance-transaction-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "transaction-service"}]'
     environment:
       ConnectionStrings__TransactionDb: "Server=sqlserver,1433;Database=TransactionDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
+      Consul__Host: "consul"
     ports:
       - "8082:8080"
     depends_on:
@@ -65,6 +82,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      consul:
+        condition: service_started
     networks:
       - greenfinance-network
 
@@ -73,12 +92,15 @@ services:
       context: ..
       dockerfile: src/Services/ESGService/ESGService.Api/Dockerfile
     container_name: greenfinance-esg-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "esg-service"}]'
     environment:
       ConnectionStrings__EsgDb: "Server=sqlserver,1433;Database=EsgDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
       ReferenceDataService__BaseUrl: "http://reference-data-service:8080/"
+      Consul__Host: "consul"
     ports:
       - "8083:8080"
     depends_on:
@@ -88,6 +110,8 @@ services:
         condition: service_healthy
       reference-data-service:
         condition: service_started
+      consul:
+        condition: service_started
     networks:
       - greenfinance-network
 
@@ -96,11 +120,14 @@ services:
       context: ..
       dockerfile: src/Services/ReportService/ReportService.Api/Dockerfile
     container_name: greenfinance-report-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "report-service"}]'
     environment:
       ConnectionStrings__ReportDb: "Server=sqlserver,1433;Database=ReportDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
+      Consul__Host: "consul"
     ports:
       - "8084:8080"
     depends_on:
@@ -108,6 +135,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      consul:
+        condition: service_started
     networks:
       - greenfinance-network
 
@@ -116,11 +145,14 @@ services:
       context: ..
       dockerfile: src/Services/NotificationService/NotificationService.Api/Dockerfile
     container_name: greenfinance-notification-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "notification-service"}]'
     environment:
       ConnectionStrings__NotificationDb: "Server=sqlserver,1433;Database=NotificationDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
+      Consul__Host: "consul"
     ports:
       - "8085:8080"
     depends_on:
@@ -128,6 +160,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      consul:
+        condition: service_started
     networks:
       - greenfinance-network
 
@@ -136,6 +170,10 @@ services:
       context: ..
       dockerfile: src/ApiGateway/Dockerfile
     container_name: greenfinance-gateway
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "api-gateway"}]'
+    environment:
+      Consul__Host: "consul"
     ports:
       - "8080:8080"
     depends_on:
@@ -144,6 +182,64 @@ services:
       - reference-data-service
       - report-service
       - notification-service
+      - consul
+    networks:
+      - greenfinance-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: greenfinance-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - greenfinance-network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: greenfinance-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - greenfinance-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: greenfinance-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: "mailhog:1025"
+      GF_SMTP_FROM_ADDRESS: "alerts@greenfinance.local"
+      GF_SMTP_SKIP_VERIFY: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - mailhog
+    networks:
+      - greenfinance-network
+
+  datadog-agent:
+    image: datadog/agent:latest
+    container_name: greenfinance-datadog-agent
+    environment:
+      DD_API_KEY: "${DD_API_KEY}"
+      DD_SITE: "${DD_SITE:-datadoghq.com}"
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_CONTAINER_EXCLUDE: "name:greenfinance-datadog-agent"
+      DD_APM_ENABLED: "false"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
     networks:
       - greenfinance-network
 

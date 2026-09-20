@@ -1,3 +1,5 @@
+using GreenFinance.Observability;
+using GreenFinance.ServiceDiscovery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using ReportService.Api.Consumers;
@@ -6,14 +8,19 @@ using ReportService.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddJsonConsole();
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddDbContext<ReportDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("ReportDb")));
 
 builder.Services.AddScoped<ITransactionRecordRepository, TransactionRecordRepository>();
 builder.Services.AddSingleton<ReportAggregator>();
+builder.Services.AddConsulServiceDiscovery(builder.Configuration);
+builder.Services.AddGreenFinanceMetrics("ReportService");
 
 builder.Services.AddMassTransit(x =>
 {
@@ -60,6 +67,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();
 

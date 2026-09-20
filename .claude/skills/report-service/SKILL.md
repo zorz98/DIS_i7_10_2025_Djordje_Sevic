@@ -46,7 +46,12 @@ dotnet test tests/ReportService.IntegrationTests/ReportService.IntegrationTests.
 
 `ReportsApiTests` namerno publikuje oba eventa nazad-nazad da uhvati regresiju te
 race-condition — ne "popravljaj" test dodavanjem veštačkog delay-a između publish
-poziva.
+poziva. Iz istog razloga, uslov u polling petlji mora da čeka na **potpuno** stanje
+(npr. i `TotalExpenses > 0`, ne samo da red postoji) — inače test lažno-pozitivno
+prekine na privremenom placeholder redu.
+
+Servis se registruje u Consul (`GreenFinance.ServiceDiscovery`) i izlaže `/metrics`
+(`GreenFinance.Observability`) — nema sopstveni business meter.
 
 ## EF Core migracije
 

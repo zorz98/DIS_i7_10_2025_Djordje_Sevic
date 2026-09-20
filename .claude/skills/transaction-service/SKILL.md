@@ -34,6 +34,10 @@ logike: [`docs/business-logic.md`](../../../docs/business-logic.md#transactionse
   `UsingRabbitMq((context, cfg) => {...})` odn. `AddDbContext` callback-a — ne u
   promenljivu pre `AddMassTransit`/`AddDbContext` (WebApplicationFactory testovi tada
   ne bi videli config override).
+- Servis se registruje u Consul (`GreenFinance.ServiceDiscovery`) i izlaže `/metrics`
+  (`GreenFinance.Observability`, uklj. `TransactionMetrics` brojač
+  `transactions.created`, ažuriran u `TransactionsController.Create`) — vidi
+  [`docs/architecture.md`](../../../docs/architecture.md#service-discovery-consul).
 
 ## Testovi
 

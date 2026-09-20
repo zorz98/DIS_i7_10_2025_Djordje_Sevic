@@ -7,6 +7,9 @@ na osnovu kategorije troška, iznosa i CO2 faktora.
 > Osnovna verzija: 5 .NET mikroservisa, SQL Server po servisu, Docker, RabbitMQ, REST,
 > unit + integration testovi, GitHub Actions CI/CD, YARP gateway i Polly resilience na
 > sinhronoj komunikaciji.
+>
+> Plus bonus: Consul service discovery, Prometheus + Grafana monitoring sa mail
+> alarmom na circuit breaker, i Datadog centralizovano logovanje.
 
 ## Sadržaj
 
@@ -33,7 +36,10 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up --build
 ```
 
 Gateway je dostupan na `http://localhost:8080`, RabbitMQ management UI na
-`http://localhost:15672` (guest/guest).
+`http://localhost:15672` (guest/guest), Consul UI na `http://localhost:8500`,
+Prometheus na `http://localhost:9090`, Grafana na `http://localhost:3000`
+(admin/admin), i MailHog (alert email inbox) na `http://localhost:8025`. Detalji u
+[`docs/deployment.md`](docs/deployment.md).
 
 Detaljno uputstvo za build/test/deploy po fazama nalazi se u
 [`docs/deployment.md`](docs/deployment.md).

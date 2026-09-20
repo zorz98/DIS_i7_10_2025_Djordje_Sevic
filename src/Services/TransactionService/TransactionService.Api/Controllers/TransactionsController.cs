@@ -10,7 +10,8 @@ namespace TransactionService.Api.Controllers;
 [Route("transactions")]
 public sealed class TransactionsController(
     ITransactionRepository repository,
-    IPublishEndpoint publishEndpoint) : ControllerBase
+    IPublishEndpoint publishEndpoint,
+    TransactionMetrics metrics) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<TransactionDto>> Create(CreateTransactionRequest request, CancellationToken cancellationToken)
@@ -25,6 +26,8 @@ public sealed class TransactionsController(
             transaction.Amount,
             transaction.Currency,
             transaction.Date), cancellationToken);
+
+        metrics.RecordCreated();
 
         var dto = TransactionDto.FromDomain(transaction);
         return CreatedAtAction(nameof(GetById), new { id = transaction.Id }, dto);

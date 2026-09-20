@@ -1,6 +1,9 @@
+using System.Diagnostics.Metrics;
 using ESGService.Api.Consumers;
 using ESGService.Domain;
 using ESGService.Infrastructure;
+using GreenFinance.Observability;
+using GreenFinance.ServiceDiscovery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Http.Resilience;
@@ -8,8 +11,11 @@ using Polly;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddJsonConsole();
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddDbContext<EsgDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("EsgDb")));
@@ -18,16 +24,26 @@ builder.Services.AddScoped<IEsgResultRepository, EsgResultRepository>();
 builder.Services.AddSingleton<Co2Calculator>();
 builder.Services.AddSingleton<EsgScoreCalculator>();
 builder.Services.AddScoped<EsgCalculationService>();
+builder.Services.AddConsulServiceDiscovery(builder.Configuration);
+
+builder.Services.AddSingleton(new Meter(EsgMetrics.MeterName));
+builder.Services.AddSingleton<EsgMetrics>();
+builder.Services.AddGreenFinanceMetrics("ESGService", EsgMetrics.MeterName);
 
 builder.Services
     .AddHttpClient<IReferenceDataClient, ReferenceDataClient>(client =>
     {
         var baseUrl = builder.Configuration["ReferenceDataService:BaseUrl"] ?? "http://localhost:8080/";
         client.BaseAddress = new Uri(baseUrl);
-        client.Timeout = TimeSpan.FromSeconds(5);
+        // No client.Timeout here: that raises a plain TaskCanceledException which
+        // Polly's default transient-failure predicate does not recognize, so Retry
+        // and CircuitBreaker would silently never engage. Polly's own AddTimeout
+        // below raises TimeoutRejectedException, which IS handled by both.
     })
-    .AddResilienceHandler("reference-data-pipeline", pipeline =>
+    .AddResilienceHandler("reference-data-pipeline", (pipeline, context) =>
     {
+        var metrics = context.ServiceProvider.GetRequiredService<EsgMetrics>();
+
         // Retry a few times before giving the circuit breaker a chance to open.
         pipeline.AddRetry(new HttpRetryStrategyOptions
         {
@@ -43,7 +59,25 @@ builder.Services
             SamplingDuration = TimeSpan.FromSeconds(10),
             MinimumThroughput = 3,
             BreakDuration = TimeSpan.FromSeconds(15),
+            OnOpened = _ =>
+            {
+                metrics.SetCircuitOpen();
+                return ValueTask.CompletedTask;
+            },
+            OnClosed = _ =>
+            {
+                metrics.SetCircuitClosed();
+                return ValueTask.CompletedTask;
+            },
+            OnHalfOpened = _ =>
+            {
+                metrics.SetCircuitHalfOpen();
+                return ValueTask.CompletedTask;
+            },
         });
+
+        // Per-attempt timeout, innermost so each retry attempt gets its own budget.
+        pipeline.AddTimeout(TimeSpan.FromSeconds(5));
     });
 
 builder.Services.AddMassTransit(x =>
@@ -85,6 +119,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();
 
