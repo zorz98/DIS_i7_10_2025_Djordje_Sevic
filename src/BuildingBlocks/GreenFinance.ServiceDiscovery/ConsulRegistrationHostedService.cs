@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Net;
+using System.Net.Sockets;
 
 namespace GreenFinance.ServiceDiscovery;
 
@@ -49,6 +50,13 @@ public sealed class ConsulRegistrationHostedService(
 
         if (config.Sidecar is { Enabled: true } sidecar)
         {
+            // Consul rejects an explicit ID on SidecarService ("managed by the agent") — it
+            // always auto-generates "<parent-id>-sidecar-proxy". Since the parent ID here is
+            // itself hostname-derived (see ResolveAddress), the sidecar container can't know
+            // this value ahead of time from a static compose command-line flag. Instead, once
+            // registration succeeds below, we write the resolved ID to a file on a volume
+            // shared with the sidecar container, which reads it via consul-dataplane's
+            // `-proxy-id-path` flag.
             registration.Connect = new AgentServiceConnect
             {
                 SidecarService = new AgentServiceRegistration
@@ -73,6 +81,12 @@ public sealed class ConsulRegistrationHostedService(
             {
                 await consulClient.Agent.ServiceRegister(registration, cancellationToken);
                 logger.LogInformation("Registered {ServiceName} ({ServiceId}) with Consul", config.ServiceName, _registrationId);
+
+                if (config.Sidecar is { Enabled: true } enabledSidecar)
+                {
+                    WriteSidecarProxyIdFile(enabledSidecar, _registrationId);
+                }
+
                 return;
             }
             catch (Exception ex) when (attempt < MaxAttempts)
@@ -91,6 +105,24 @@ public sealed class ConsulRegistrationHostedService(
         }
     }
 
+    private void WriteSidecarProxyIdFile(ConsulSidecarOptions sidecar, string parentRegistrationId)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(sidecar.ProxyIdFilePath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(sidecar.ProxyIdFilePath, $"{parentRegistrationId}-sidecar-proxy");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to write sidecar proxy ID file to {Path}", sidecar.ProxyIdFilePath);
+        }
+    }
+
     private static string ResolveAddress(ConsulOptions config)
     {
         if (!string.IsNullOrWhiteSpace(config.ServiceAddress))
@@ -100,11 +132,13 @@ public sealed class ConsulRegistrationHostedService(
 
         try
         {
-            // In Docker, a container's hostname is unique per container/replica and
-            // resolvable by other containers on the same user-defined bridge network —
-            // this is what lets multiple scaled replicas of the same service register
-            // as distinct Consul catalog entries instead of colliding on ServiceName.
-            return Dns.GetHostName();
+            // Resolve to this container's actual IP (not just its hostname string) —
+            // unique per container/replica like the hostname would be, but also a valid
+            // literal address for Consul Connect sidecars, which bind their Envoy
+            // listener directly to this value and reject a non-IP hostname.
+            var hostEntry = Dns.GetHostEntry(Dns.GetHostName());
+            var ipv4 = hostEntry.AddressList.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(a));
+            return ipv4?.ToString() ?? Dns.GetHostName();
         }
         catch (Exception)
         {

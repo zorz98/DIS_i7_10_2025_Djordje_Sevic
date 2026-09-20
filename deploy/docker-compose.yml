@@ -71,8 +71,11 @@ services:
       ConnectionStrings__ReferenceDataDb: "Server=sqlserver,1433;Database=ReferenceDataDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       Consul__Host: "consul"
       Redis__ConnectionString: "redis:6379"
+      Consul__Sidecar__Enabled: "true"
     ports:
       - "8081:8080"
+    volumes:
+      - reference-data-service-sidecar-id:/consul-sidecar
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -82,6 +85,38 @@ services:
         condition: service_healthy
     networks:
       - greenfinance-network
+
+  # Consul Connect sidecar for reference-data-service (inbound side of the
+  # scoped service mesh — see docs/architecture.md "Service mesh"). Shares
+  # reference-data-service's network namespace so it can reach the app on
+  # 127.0.0.1:8080, and a small volume so it can read the sidecar proxy ID the
+  # app wrote after registering (Consul auto-generates that ID and rejects an
+  # explicit one, so it can't be a static command-line flag here). -tls-disabled
+  # only affects the control-plane channel (dataplane -> Consul server);
+  # data-plane mTLS between services is issued independently by Consul's
+  # Connect CA regardless of this flag.
+  reference-data-service-sidecar:
+    image: hashicorp/consul-dataplane:1.9
+    container_name: greenfinance-reference-data-service-sidecar
+    network_mode: "service:reference-data-service"
+    volumes:
+      - reference-data-service-sidecar-id:/consul-sidecar
+    # The app writes /consul-sidecar/proxy-id only after it successfully
+    # registers with Consul, which can race the sidecar's own startup — retry
+    # on failure rather than requiring strict start-order coordination.
+    restart: on-failure:10
+    command:
+      - "-addresses=consul"
+      - "-grpc-port=8502"
+      - "-tls-disabled"
+      - "-log-level=info"
+      - "-proxy-id-path=/consul-sidecar/proxy-id"
+      - "-proxy-node-name=consul-dev"
+    depends_on:
+      reference-data-service:
+        condition: service_started
+      consul:
+        condition: service_started
 
   # Scale with: docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --scale transaction-service=3
   # No container_name/host port here (by design) — Compose needs to assign
@@ -271,3 +306,6 @@ services:
 networks:
   greenfinance-network:
     driver: bridge
+
+volumes:
+  reference-data-service-sidecar-id:

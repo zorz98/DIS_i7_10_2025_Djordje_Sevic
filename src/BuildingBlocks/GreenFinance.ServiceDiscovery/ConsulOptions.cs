@@ -39,6 +39,13 @@ public sealed class ConsulSidecarOptions
     public bool Enabled { get; set; }
 
     public List<ConsulUpstreamOptions> Upstreams { get; set; } = [];
+
+    /// <summary>
+    /// Path (on a volume shared with the sidecar container) where the resolved
+    /// sidecar proxy service ID is written after registration, for the sidecar
+    /// container to read via consul-dataplane's <c>-proxy-id-path</c> flag.
+    /// </summary>
+    public string ProxyIdFilePath { get; set; } = "/consul-sidecar/proxy-id";
 }
 
 public sealed class ConsulUpstreamOptions
