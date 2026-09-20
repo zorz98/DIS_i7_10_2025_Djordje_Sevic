@@ -42,6 +42,18 @@ services:
     networks:
       - greenfinance-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: greenfinance-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - greenfinance-network
+
   reference-data-service:
     build:
       context: ..
