@@ -48,6 +48,31 @@ services:
     networks:
       - greenfinance-network
 
+  # One-shot: applies the service-intentions config entries (default-deny +
+  # explicit esg-service -> reference-data-service allow) on every startup.
+  # `consul config write` is idempotent, which matters here since dev-mode
+  # Consul's config-entry store is in-memory only (no -data-dir volume), so
+  # these need to be re-applied on every fresh `docker compose up`.
+  consul-intentions-init:
+    image: hashicorp/consul:1.19
+    container_name: greenfinance-consul-intentions-init
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        until consul catalog nodes >/dev/null 2>&1; do sleep 1; done &&
+        consul config write /consul-config/00-default-deny.hcl &&
+        consul config write /consul-config/01-esg-to-referencedata.hcl
+    environment:
+      CONSUL_HTTP_ADDR: "http://consul:8500"
+    volumes:
+      - ./consul/intentions:/consul-config:ro
+    depends_on:
+      consul:
+        condition: service_started
+    networks:
+      - greenfinance-network
+    restart: "no"
+
   redis:
     image: redis:7-alpine
     container_name: greenfinance-redis
