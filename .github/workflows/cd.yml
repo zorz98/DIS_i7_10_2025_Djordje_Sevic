@@ -2,7 +2,7 @@ name: CD
 
 on:
   push:
-    branches: [develop, main]
+    branches: [develop, uat, main]
 
 env:
   DOTNET_VERSION: "10.0.x"
@@ -73,11 +73,11 @@ jobs:
           # GHCR image references must be lowercase; github.repository preserves the
           # repository's original casing, so it has to be normalized here.
           echo "repo_lc=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "tag=prod-${{ github.sha }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=dev-${{ github.sha }}" >> "$GITHUB_OUTPUT"
-          fi
+          case "${{ github.ref_name }}" in
+            main) echo "tag=prod-${{ github.sha }}" >> "$GITHUB_OUTPUT" ;;
+            uat) echo "tag=uat-${{ github.sha }}" >> "$GITHUB_OUTPUT" ;;
+            *) echo "tag=dev-${{ github.sha }}" >> "$GITHUB_OUTPUT" ;;
+          esac
 
       - name: Build and push ${{ matrix.service.name }}
         uses: docker/build-push-action@v6
@@ -101,6 +101,19 @@ jobs:
           echo "Deploying GreenFinance images tagged 'develop-latest' to the DEV environment."
           echo "Configure DEV_HOST / DEV_SSH_KEY secrets and an SSH deploy step (e.g. appleboy/ssh-action)"
           echo "that runs 'docker compose -f deploy/docker-compose.yml pull && docker compose -f deploy/docker-compose.yml up -d' on the DEV host."
+
+  deploy-uat:
+    name: Deploy to UAT
+    runs-on: ubuntu-latest
+    needs: build-and-push-images
+    if: github.ref_name == 'uat'
+    environment: staging
+    steps:
+      - name: Deploy UAT stack
+        run: |
+          echo "Deploying GreenFinance images tagged 'uat-latest' to the UAT environment."
+          echo "Configure UAT_HOST / UAT_SSH_KEY secrets and an SSH deploy step (e.g. appleboy/ssh-action)"
+          echo "that runs 'docker compose -f deploy/docker-compose.yml pull && docker compose -f deploy/docker-compose.yml up -d' on the UAT host."
 
   deploy-prod:
     name: Deploy to PROD
