@@ -62,11 +62,15 @@ services:
     networks:
       - greenfinance-network
 
+  # Scale with: docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --scale transaction-service=3
+  # No container_name/host port here (by design) — Compose needs to assign
+  # unique replica names, and multiple replicas can't share one host port.
+  # Reachable only through the gateway (http://localhost:8080) when scaled.
+  # Direct-to-instance debugging: docker compose exec transaction-service curl -s localhost:8080/health
   transaction-service:
     build:
       context: ..
       dockerfile: src/Services/TransactionService/TransactionService.Api/Dockerfile
-    container_name: greenfinance-transaction-service
     labels:
       com.datadoghq.ad.logs: '[{"source": "csharp", "service": "transaction-service"}]'
     environment:
@@ -75,8 +79,6 @@ services:
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
       Consul__Host: "consul"
-    ports:
-      - "8082:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -87,11 +89,12 @@ services:
     networks:
       - greenfinance-network
 
+  # Scale with: docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --scale esg-service=2
+  # No container_name/host port here (by design) — see transaction-service above.
   esg-service:
     build:
       context: ..
       dockerfile: src/Services/ESGService/ESGService.Api/Dockerfile
-    container_name: greenfinance-esg-service
     labels:
       com.datadoghq.ad.logs: '[{"source": "csharp", "service": "esg-service"}]'
     environment:
@@ -101,8 +104,6 @@ services:
       RabbitMq__Password: "guest"
       ReferenceDataService__BaseUrl: "http://reference-data-service:8080/"
       Consul__Host: "consul"
-    ports:
-      - "8083:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
