@@ -2,6 +2,7 @@ using Consul;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Net;
 
 namespace GreenFinance.ServiceDiscovery;
 
@@ -28,7 +29,7 @@ public sealed class ConsulRegistrationHostedService(
             return;
         }
 
-        var address = string.IsNullOrWhiteSpace(config.ServiceAddress) ? config.ServiceName : config.ServiceAddress;
+        var address = ResolveAddress(config);
         _registrationId = $"{config.ServiceName}-{address}-{config.ServicePort}";
 
         var registration = new AgentServiceRegistration
@@ -69,6 +70,27 @@ public sealed class ConsulRegistrationHostedService(
                     config.ServiceName,
                     MaxAttempts);
             }
+        }
+    }
+
+    private static string ResolveAddress(ConsulOptions config)
+    {
+        if (!string.IsNullOrWhiteSpace(config.ServiceAddress))
+        {
+            return config.ServiceAddress;
+        }
+
+        try
+        {
+            // In Docker, a container's hostname is unique per container/replica and
+            // resolvable by other containers on the same user-defined bridge network —
+            // this is what lets multiple scaled replicas of the same service register
+            // as distinct Consul catalog entries instead of colliding on ServiceName.
+            return Dns.GetHostName();
+        }
+        catch (Exception)
+        {
+            return config.ServiceName;
         }
     }
 
