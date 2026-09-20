@@ -9,7 +9,13 @@
     <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Domain/ReferenceDataService.Domain.csproj" />
     <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Infrastructure/ReferenceDataService.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Services/TransactionService/">
+    <Project Path="src/Services/TransactionService/TransactionService.Api/TransactionService.Api.csproj" />
+    <Project Path="src/Services/TransactionService/TransactionService.Domain/TransactionService.Domain.csproj" />
+    <Project Path="src/Services/TransactionService/TransactionService.Infrastructure/TransactionService.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ReferenceDataService.UnitTests/ReferenceDataService.UnitTests.csproj" />
+    <Project Path="tests/TransactionService.UnitTests/TransactionService.UnitTests.csproj" />
   </Folder>
 </Solution>
