@@ -170,6 +170,28 @@ alert preko SMTP-a ka MailHog-u (`http://localhost:8025` — lokalni SMTP catche
 šalje prave mejlove). Ovo je konkretna realizacija "mail bazirani notifikacioni
 kanali" + "alarm na circuit breaker-om" bonus stavki iz predloga.
 
+## Keširanje (Redis)
+
+Deljeni `redis` kontejner (`http://localhost:6379`, samo interna mreža) služi kao
+distribuirani keš za dva slučaja:
+
+- **ReferenceDataService** (`CachedEmissionFactorRepository`) — emisijski faktori
+  su statični seed podaci bez ijednog write endpoint-a u servisu, pa se keširaju sa
+  dugim TTL-om (24h). Ovo je najfrekventniji sinhroni poziv u sistemu (ESGService
+  ga zove jednom po transakciji), pa keširanje direktno smanjuje DB opterećenje na
+  hot path-u.
+- **ReportService** (`ReportCache`) — `GET /reports/company/{id}` agregatni
+  izveštaj, kratak TTL (45s) uz eksplicitnu invalidaciju iz oba event konzumera
+  (`TransactionCreatedEventConsumer`/`EsgCalculatedEventConsumer`) posle svakog
+  upisa u pogođeni company/period — jer se ovi podaci, za razliku od emisijskih
+  faktora, stvarno menjaju u runtime-u.
+
+Oba mesta koriste `IDistributedCache` (`Microsoft.Extensions.Caching.StackExchangeRedis`)
+kao **best-effort** sloj: nedostupan Redis nikad ne obara zahtev — svaki keš poziv
+je u `try/catch` i pada nazad na direktan upit ka bazi ako Redis ne odgovori
+(`AbortOnConnectFail = false` + kratki connect/sync timeout-i, da fallback bude
+brz umesto da blokira zahtev).
+
 ## Centralizovano logovanje (Datadog)
 
 Svi servisi loguju strukturisani JSON na stdout (`builder.Logging.AddJsonConsole()`).
@@ -188,6 +210,7 @@ ASP.NET runtime image za pokretanje). `deploy/docker-compose.yml` orkestrira:
 - 1 SQL Server 2022 kontejner (5 logičkih baza)
 - 1 RabbitMQ (management) kontejner
 - Consul (service discovery)
+- Redis (keširanje — ReferenceDataService, ReportService)
 - Prometheus + Grafana + MailHog (monitoring i alarmiranje)
 - Datadog Agent (centralizovano logovanje)
 

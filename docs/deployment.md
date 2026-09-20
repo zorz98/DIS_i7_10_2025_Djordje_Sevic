@@ -33,7 +33,7 @@ cp deploy/.env.example deploy/.env
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up --build
 ```
 
-Ovo podiže: SQL Server, RabbitMQ, Consul, svih 5 mikroservisa, API Gateway, i
+Ovo podiže: SQL Server, RabbitMQ, Consul, Redis, svih 5 mikroservisa, API Gateway, i
 observability stack (Prometheus, Grafana, MailHog, Datadog Agent). Nakon starta:
 
 - Gateway: `http://localhost:8080`
@@ -78,6 +78,14 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml stop referenc
 # pozove ReferenceDataService i circuit se otvori (esg_referencedata_circuit_state=1)
 # posle ~1 min proveri http://localhost:8025 (MailHog) — treba da stigne "FIRING" email
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml start reference-data-service
+```
+
+Provera Redis keša (emisijski faktori, ReferenceDataService):
+
+```bash
+curl http://localhost:8081/categories/Fuel   # prvi poziv puni keš
+docker exec greenfinance-redis redis-cli KEYS '*'
+docker exec greenfinance-redis redis-cli HGETALL "emission-factor:Fuel"
 ```
 
 ### Skaliranje servisa (load balancing preko gateway-a)

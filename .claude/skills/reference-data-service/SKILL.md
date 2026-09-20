@@ -31,6 +31,23 @@ sinhrono. Seed podaci: [`docs/business-logic.md`](../../../docs/business-logic.m
   (`GreenFinance.Observability`) — nema sopstveni business meter, samo ugrađene
   ASP.NET Core/HTTP/runtime metrike.
 
+## Keš (Redis)
+
+`IEmissionFactorRepository` je registrovan kao `CachedEmissionFactorRepository`
+(`ReferenceDataService.Infrastructure/CachedEmissionFactorRepository.cs`) —
+cache-aside dekorator oko `EmissionFactorRepository`, backed by Redis
+(`IDistributedCache`, `Microsoft.Extensions.Caching.StackExchangeRedis`). Ključevi:
+`emission-factors:all`, `emission-factor:{category}`; TTL 24h (podaci se praktično
+nikad ne menjaju u runtime-u — vidi seed napomenu iznad — konačan TTL samo
+izbegava specijalan slučaj "kako se ovo ikad osvežava", ne štiti od stvarne
+invalidacije). Svaki Redis poziv je u `try/catch` za
+`RedisConnectionException`/`RedisTimeoutException`/`TimeoutException` — nedostupan
+Redis nikad ne sme da obori `/categories` endpoint, samo pada nazad na bazu
+(`ConfigurationOptions.AbortOnConnectFail = false` + kratki timeout-i u
+`Program.cs`, da fallback bude brz umesto da blokira zahtev). Ako menjaš
+`EmissionFactorRepository`, dekorator ostaje nepromenjen (zavisi od
+`IEmissionFactorRepository`, ne od konkretne klase — bitno za testabilnost sa Moq).
+
 ## Testovi
 
 ```bash
