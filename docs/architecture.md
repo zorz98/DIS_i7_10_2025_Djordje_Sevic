@@ -43,6 +43,7 @@ flowchart TB
 
     MQ{{RabbitMQ}}
     Consul{{Consul}}
+    Redis{{Redis}}
 
     Client -->|REST| GW
     GW -->|REST, dinamička destinacija| TS
@@ -57,7 +58,9 @@ flowchart TB
     RS --> RPDB
     NS --> NDB
 
-    ESG -->|REST: GET emission factor<br/>Polly retry + circuit breaker| RDS
+    ESG -->|localhost:9191, mTLS + intentions<br/>Polly retry + circuit breaker| ESGSC
+    ESGSC{{esg-service sidecar}} -->|mTLS| RDSSC{{reference-data-service sidecar}}
+    RDSSC --> RDS
 
     TS -->|publish TransactionCreatedEvent| MQ
     MQ -->|consume| ESG
@@ -73,6 +76,11 @@ flowchart TB
     RS -.->|register + /health| Consul
     NS -.->|register + /health| Consul
     GW -.->|discover destinations every 10s| Consul
+    ESGSC -.->|xDS / mesh config| Consul
+    RDSSC -.->|xDS / mesh config| Consul
+
+    RDS -.->|cache-aside, TTL 24h| Redis
+    RS -.->|cache-aside, TTL 45s| Redis
 
     subgraph Observability
         Prom{{Prometheus}}
@@ -105,7 +113,58 @@ flowchart TB
   namerno implementiran kao Polly-jeva sopstvena strategija (`AddTimeout`), a ne kao
   `HttpClient.Timeout` — ovo poslednje baca običan `TaskCanceledException` koji
   Polly-jev podrazumevani predikat ne prepoznaje kao tranzijentnu grešku, pa bi
-  retry/circuit breaker tiho nikad ne bili aktivirani.
+  retry/circuit breaker tiho nikad ne bili aktivirani. Ovaj poziv od DIS-45 ide kroz
+  Consul Connect mesh (mTLS + intentions) — vidi "Service mesh" ispod; gateway-ove
+  REST putanje ka svih 5 servisa ostaju van mesh-a, nepromenjene.
+
+## Service mesh (Consul Connect) — scoped na ESGService → ReferenceDataService
+
+Obim je **namerno ograničen** na jedini stvarni sinhroni servis-servis poziv u
+sistemu (gore) — ne pun mesh preko svih 5 servisa i gateway-a. Razlog: pun mesh bi
+zahtevao sidecar uz svaki servis i gateway (skoro dupliranje broja kontejnera) i
+naterao bi YARP gateway da napusti već izgrađeno dinamičko Consul-catalog
+otkrivanje (vidi "Service discovery" ispod) za meš-ovane servise. Gateway i ostala
+3 servisa (TransactionService, ReportService, NotificationService) nemaju
+sinhrone HTTP pozive među sobom — samo RabbitMQ, na koji mesh ne utiče — pa ostaju
+potpuno van mesh-a.
+
+Mehanizam:
+
+- Consul dev-agent ima Connect uključen sa auto-generisanim built-in CA (dev mod
+  podrazumevano). Node ime je pinovano (`-node=consul-dev`) da ostane stabilno
+  kroz restart kontejnera — `consul-dataplane` sidecar-i rade node-scoped lookup-e
+  koji bi se pokvarili da se ime menja.
+- `ReferenceDataService` i `ESGService` svaki dobijaju sopstveni
+  `hashicorp/consul-dataplane:1.9` sidecar kontejner
+  (`reference-data-service-sidecar`, `esg-service-sidecar`), pokrenut sa
+  `network_mode: "service:<app>"` (deli network namespace sa app kontejnerom).
+  `GreenFinance.ServiceDiscovery` (`ConsulOptions.Sidecar`,
+  `ConsulRegistrationHostedService`) opciono registruje sidecar (`Connect.
+  SidecarService`) kao deo servisne registracije — Consul auto-dodeljuje sidecar-u
+  inbound port (dev opseg `21000+`) i, za ESGService, upstream lokalni bind port
+  (`9191`) ka `reference-data-service`.
+- Consul ne dozvoljava eksplicitan ID na sidecar registraciji ("managed by the
+  agent") — auto-generisani ID (`<parent-id>-sidecar-proxy`) zavisi od
+  hostname/IP-a app kontejnera, pa ga app upisuje u fajl na deljenom volume-u
+  (`/consul-sidecar/proxy-id`) posle uspešne registracije; sidecar ga čita preko
+  `-proxy-id-path`.
+- ESGService-ov `ReferenceDataService__BaseUrl` (samo u docker-compose okruženju,
+  `appsettings.json` za lokalni dev ostaje nepromenjen) je od DIS-45 postavljen na
+  `http://localhost:9191/` — poziv ide kroz sopstveni sidecar, mTLS do
+  ReferenceDataService-ovog sidecar-a, pa na app port 8080. `-tls-disabled` na
+  `consul-dataplane` komandi utiče samo na control-plane kanal (dataplane→Consul
+  server), NE na data-plane mTLS između servisa (to izdaje Consul-ova Connect CA
+  nezavisno).
+- **Service intentions** (`deploy/consul/intentions/*.hcl`, primenjeni preko
+  one-shot `consul-intentions-init` kontejnera na svaki `docker compose up`, jer
+  dev-mode Consul config-entry store nije perzistentan): default-deny (`*` → `*`)
+  plus eksplicitan allow (`esg-service` → `reference-data-service`, viši
+  precedence od wildcard-a). Verifikovano uživo: privremeni deny na tom pravilu
+  odmah obara poziv (`GET /esg/transaction/{id}` vraća `temporarily_unavailable`,
+  `esg_referencedata_circuit_state` gauge ide na 1) — vraćanjem na allow saobraćaj
+  se oporavlja.
+
+Provera i primeri komandi: [`deployment.md`](deployment.md).
 
 ## Asinhrona komunikacija (RabbitMQ, MassTransit)
 
@@ -209,7 +268,9 @@ ASP.NET runtime image za pokretanje). `deploy/docker-compose.yml` orkestrira:
 - 5 mikroservisa + ApiGateway
 - 1 SQL Server 2022 kontejner (5 logičkih baza)
 - 1 RabbitMQ (management) kontejner
-- Consul (service discovery)
+- Consul (service discovery) + `consul-intentions-init` (one-shot, primenjuje
+  service intentions) + 2 `consul-dataplane` sidecar kontejnera (scoped service
+  mesh — ReferenceDataService, ESGService)
 - Redis (keširanje — ReferenceDataService, ReportService)
 - Prometheus + Grafana + MailHog (monitoring i alarmiranje)
 - Datadog Agent (centralizovano logovanje)

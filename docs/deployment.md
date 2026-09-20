@@ -88,6 +88,46 @@ docker exec greenfinance-redis redis-cli KEYS '*'
 docker exec greenfinance-redis redis-cli HGETALL "emission-factor:Fuel"
 ```
 
+### Service mesh (Consul Connect) — ESGService → ReferenceDataService
+
+Scoped na jedini sinhroni servis-servis poziv u sistemu — vidi
+[`architecture.md`](architecture.md#service-mesh-consul-connect--scoped-na-esgservice--referencedataservice)
+za obim i mehanizam. Provera da je saobraćaj stvarno mTLS (SPIFFE identitet
+izdat od Consul-ove Connect CA, ne plain HTTP passthrough preko sidecar-a):
+
+```bash
+docker run --rm --network container:greenfinance-reference-data-service curlimages/curl:latest \
+  -s http://localhost:19000/certs   # pokazuje SPIFFE URI cert_chain-a (svc/reference-data-service)
+
+# generiši malo saobraćaja pa proveri da handshake brojač raste
+curl -X POST http://localhost:8080/transactions -H "Content-Type: application/json" \
+  -d '{"companyId":1,"category":"Fuel","amount":100,"currency":"EUR","date":"2026-09-20"}'
+docker run --rm --network container:greenfinance-reference-data-service curlimages/curl:latest \
+  -s http://localhost:19000/stats | grep ssl.handshake
+```
+
+Provera da su intentions stvarno primenjene (default-deny + eksplicitni allow,
+`deploy/consul/intentions/*.hcl`):
+
+```bash
+# privremeno promeni Action u 01-esg-to-referencedata.hcl na "deny", pa:
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml run --rm consul-intentions-init
+
+# POST /transactions (kao gore) → GET /esg/transaction/{id} sada vraća
+# "temporarily_unavailable" (Polly circuit breaker se otvara —
+# esg_referencedata_circuit_state metrika ide na 1)
+
+# vrati Action na "allow", ponovo pokreni consul-intentions-init, potvrdi oporavak
+```
+
+**Napomena**: `esg-service`/`esg-service-sidecar` dele network namespace preko
+`network_mode: "service:esg-service"` — restartovanje `esg-service` kontejnera
+samostalno (npr. `docker restart`) može privremeno prekinuti sidecar-ovu DNS
+rezoluciju ka `consul`; ako se to desi, restartuj i `esg-service-sidecar`. Ovo je
+poznata Docker specifičnost deljenih network namespace-ova, ne bag u mesh
+konfiguraciji — normalan `docker compose up`/`restart` na oba servisa zajedno
+(ili ceo stack) ovo ne pogađa.
+
 ### Skaliranje servisa (load balancing preko gateway-a)
 
 `TransactionService` (ulazna tačka, najviše pisanja) i `ESGService` (sinhroni
