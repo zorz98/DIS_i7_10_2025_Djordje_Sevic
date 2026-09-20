@@ -160,6 +160,11 @@ services:
       RabbitMq__Password: "guest"
       ReferenceDataService__BaseUrl: "http://reference-data-service:8080/"
       Consul__Host: "consul"
+      Consul__Sidecar__Enabled: "true"
+      Consul__Sidecar__Upstreams__0__DestinationName: "reference-data-service"
+      Consul__Sidecar__Upstreams__0__LocalBindPort: "9191"
+    volumes:
+      - esg-service-sidecar-id:/consul-sidecar
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -167,10 +172,42 @@ services:
         condition: service_healthy
       reference-data-service:
         condition: service_started
+      reference-data-service-sidecar:
+        condition: service_started
       consul:
         condition: service_started
     networks:
       - greenfinance-network
+
+  # Consul Connect sidecar for esg-service (outbound side of the scoped
+  # service mesh) — exposes reference-data-service as an upstream on
+  # 127.0.0.1:9191 (shared network namespace with esg-service), so
+  # ESGService's ReferenceDataService__BaseUrl can call through it instead of
+  # the direct reference-data-service:8080 address. NOTE: network_mode:
+  # "service:esg-service" ties this sidecar to a single esg-service
+  # container — if esg-service is scaled (`--scale esg-service=N`), only one
+  # replica gets a working sidecar; this is a known Compose limitation, not
+  # something consul-dataplane/Consul itself can fix (real sidecar-per-pod
+  # injection is a Kubernetes-level concept).
+  esg-service-sidecar:
+    image: hashicorp/consul-dataplane:1.9
+    container_name: greenfinance-esg-service-sidecar
+    network_mode: "service:esg-service"
+    volumes:
+      - esg-service-sidecar-id:/consul-sidecar
+    restart: on-failure:10
+    command:
+      - "-addresses=consul"
+      - "-grpc-port=8502"
+      - "-tls-disabled"
+      - "-log-level=info"
+      - "-proxy-id-path=/consul-sidecar/proxy-id"
+      - "-proxy-node-name=consul-dev"
+    depends_on:
+      esg-service:
+        condition: service_started
+      consul:
+        condition: service_started
 
   report-service:
     build:
@@ -309,3 +346,4 @@ networks:
 
 volumes:
   reference-data-service-sidecar-id:
+  esg-service-sidecar-id:
