@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Testcontainers.MsSql;
 using Testcontainers.RabbitMq;
+using Testcontainers.Redis;
 using Xunit;
 
 namespace ReportService.IntegrationTests;
@@ -16,6 +17,8 @@ public sealed class ReportServiceApiFactory : WebApplicationFactory<Program>, IA
         .WithPassword("guest")
         .Build();
 
+    private readonly RedisContainer _redisContainer = new RedisBuilder().Build();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureAppConfiguration((_, config) =>
@@ -27,6 +30,8 @@ public sealed class ReportServiceApiFactory : WebApplicationFactory<Program>, IA
                 ["RabbitMq:Port"] = _rabbitContainer.GetMappedPublicPort(5672).ToString(),
                 ["RabbitMq:Username"] = "guest",
                 ["RabbitMq:Password"] = "guest",
+                ["Consul:Enabled"] = "false",
+                ["Redis:ConnectionString"] = _redisContainer.GetConnectionString(),
             });
         });
     }
@@ -35,12 +40,14 @@ public sealed class ReportServiceApiFactory : WebApplicationFactory<Program>, IA
     {
         await _sqlContainer.StartAsync();
         await _rabbitContainer.StartAsync();
+        await _redisContainer.StartAsync();
     }
 
     async Task IAsyncLifetime.DisposeAsync()
     {
         await _sqlContainer.DisposeAsync();
         await _rabbitContainer.DisposeAsync();
+        await _redisContainer.DisposeAsync();
         await base.DisposeAsync();
     }
 }

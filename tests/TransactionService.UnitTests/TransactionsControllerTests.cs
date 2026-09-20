@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using FluentAssertions;
 using GreenFinance.Contracts.Events;
 using MassTransit;
@@ -14,8 +15,9 @@ public class TransactionsControllerTests
 {
     private readonly Mock<ITransactionRepository> _repository = new();
     private readonly Mock<IPublishEndpoint> _publishEndpoint = new();
+    private readonly TransactionMetrics _metrics = new(new Meter("TransactionService.UnitTests"));
 
-    private TransactionsController CreateController() => new(_repository.Object, _publishEndpoint.Object);
+    private TransactionsController CreateController() => new(_repository.Object, _publishEndpoint.Object, _metrics);
 
     [Fact]
     public async Task Create_Should_Persist_Transaction_And_Publish_TransactionCreatedEvent()

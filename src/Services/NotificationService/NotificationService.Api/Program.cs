@@ -1,3 +1,6 @@
+using System.Diagnostics.Metrics;
+using GreenFinance.Observability;
+using GreenFinance.ServiceDiscovery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using NotificationService.Api.Consumers;
@@ -6,14 +9,22 @@ using NotificationService.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddJsonConsole();
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddDbContext<NotificationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("NotificationDb")));
 
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<NotificationDecisionService>();
+builder.Services.AddConsulServiceDiscovery(builder.Configuration);
+
+builder.Services.AddSingleton(new Meter(NotificationMetrics.MeterName));
+builder.Services.AddSingleton<NotificationMetrics>();
+builder.Services.AddGreenFinanceMetrics("NotificationService", NotificationMetrics.MeterName);
 
 builder.Services.AddMassTransit(x =>
 {
@@ -44,7 +55,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
-    dbContext.Database.Migrate();
+    MigrateDatabaseWithRetry(dbContext);
 }
 
 if (app.Environment.IsDevelopment())
@@ -54,7 +65,32 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();
+
+static void MigrateDatabaseWithRetry(DbContext dbContext)
+{
+    const int maxAttempts = 5;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            dbContext.Database.Migrate();
+            return;
+        }
+        catch (Exception) when (attempt < maxAttempts)
+        {
+            // When the target database doesn't exist yet, Database.Migrate() runs CREATE DATABASE /
+            // ALTER DATABASE before EF Core's __EFMigrationsLock app-lock is available to serialize
+            // it. Under concurrent replicas against a fresh volume, one replica's ALTER DATABASE can
+            // block on another's in-progress CREATE DATABASE and hit the default 60s command timeout.
+            // Back off and retry instead of letting that crash the container.
+            Thread.Sleep(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+        }
+    }
+}
 
 public partial class Program;

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Testcontainers.MsSql;
+using Testcontainers.Redis;
 using Xunit;
 
 namespace ReferenceDataService.IntegrationTests;
@@ -9,6 +10,7 @@ namespace ReferenceDataService.IntegrationTests;
 public sealed class ReferenceDataServiceApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder().Build();
+    private readonly RedisContainer _redisContainer = new RedisBuilder().Build();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -17,15 +19,17 @@ public sealed class ReferenceDataServiceApiFactory : WebApplicationFactory<Progr
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:ReferenceDataDb"] = _sqlContainer.GetConnectionString(),
+                ["Consul:Enabled"] = "false",
+                ["Redis:ConnectionString"] = _redisContainer.GetConnectionString(),
             });
         });
     }
 
-    public Task InitializeAsync() => _sqlContainer.StartAsync();
+    public Task InitializeAsync() => Task.WhenAll(_sqlContainer.StartAsync(), _redisContainer.StartAsync());
 
     async Task IAsyncLifetime.DisposeAsync()
     {
-        await _sqlContainer.DisposeAsync();
+        await Task.WhenAll(_sqlContainer.DisposeAsync().AsTask(), _redisContainer.DisposeAsync().AsTask());
         await base.DisposeAsync();
     }
 }

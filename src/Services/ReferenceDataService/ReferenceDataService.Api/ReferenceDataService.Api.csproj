@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.12" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -17,6 +18,8 @@
   <ItemGroup>
     <ProjectReference Include="..\ReferenceDataService.Domain\ReferenceDataService.Domain.csproj" />
     <ProjectReference Include="..\ReferenceDataService.Infrastructure\ReferenceDataService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\GreenFinance.ServiceDiscovery\GreenFinance.ServiceDiscovery.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\GreenFinance.Observability\GreenFinance.Observability.csproj" />
   </ItemGroup>
 
 </Project>

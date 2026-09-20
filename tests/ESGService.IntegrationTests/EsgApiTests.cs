@@ -39,7 +39,10 @@ public class EsgApiTests(ESGServiceApiFactory factory) : IClassFixture<ESGServic
         var client = factory.CreateClient();
         EsgResultDto? result = null;
 
-        for (var attempt = 0; attempt < 20 && result is null; attempt++)
+        // The resilience pipeline now genuinely retries (3 attempts, up to 5s each
+        // via Polly's own timeout) before giving up, so this can take ~15s+ before
+        // the consumer marks the result unavailable.
+        for (var attempt = 0; attempt < 50 && result is null; attempt++)
         {
             await Task.Delay(500);
             var response = await client.GetAsync($"/esg/transaction/{transactionId}");

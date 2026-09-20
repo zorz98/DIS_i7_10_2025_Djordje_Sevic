@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using FluentAssertions;
 using Moq;
 using NotificationService.Domain;
@@ -8,8 +9,9 @@ namespace NotificationService.UnitTests;
 public class NotificationDecisionServiceTests
 {
     private readonly Mock<INotificationRepository> _repository = new();
+    private readonly NotificationMetrics _metrics = new(new Meter("NotificationService.UnitTests"));
 
-    private NotificationDecisionService CreateService() => new(_repository.Object);
+    private NotificationDecisionService CreateService() => new(_repository.Object, _metrics);
 
     [Fact]
     public async Task ProcessAsync_Should_Create_Notification_When_Score_Below_Threshold()

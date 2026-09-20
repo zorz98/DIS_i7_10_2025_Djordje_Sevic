@@ -33,54 +33,168 @@ services:
     networks:
       - greenfinance-network
 
+  consul:
+    image: hashicorp/consul:1.19
+    container_name: greenfinance-consul
+    # -node is pinned so the dev-agent's node name stays stable across container
+    # recreates (it otherwise defaults to the container's own hostname, which
+    # changes every restart and breaks node-scoped lookups that consul-dataplane
+    # sidecars rely on). Connect (mTLS mesh) is already enabled by default in
+    # dev mode with an auto-generated built-in CA; -hcl here just makes that
+    # explicit for anyone reading this file.
+    command: "agent -dev -client=0.0.0.0 -node=consul-dev -hcl=\"connect { enabled = true }\""
+    ports:
+      - "8500:8500"
+    networks:
+      - greenfinance-network
+
+  # One-shot: applies the service-intentions config entries (default-deny +
+  # explicit esg-service -> reference-data-service allow) on every startup.
+  # `consul config write` is idempotent, which matters here since dev-mode
+  # Consul's config-entry store is in-memory only (no -data-dir volume), so
+  # these need to be re-applied on every fresh `docker compose up`.
+  consul-intentions-init:
+    image: hashicorp/consul:1.19
+    container_name: greenfinance-consul-intentions-init
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        until consul catalog nodes >/dev/null 2>&1; do sleep 1; done &&
+        consul config write /consul-config/00-default-deny.hcl &&
+        consul config write /consul-config/01-esg-to-referencedata.hcl
+    environment:
+      CONSUL_HTTP_ADDR: "http://consul:8500"
+    volumes:
+      - ./consul/intentions:/consul-config:ro
+    depends_on:
+      consul:
+        condition: service_started
+    networks:
+      - greenfinance-network
+    restart: "no"
+
+  redis:
+    image: redis:7-alpine
+    container_name: greenfinance-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - greenfinance-network
+
   reference-data-service:
     build:
       context: ..
       dockerfile: src/Services/ReferenceDataService/ReferenceDataService.Api/Dockerfile
     container_name: greenfinance-reference-data-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "reference-data-service"}]'
     environment:
       ConnectionStrings__ReferenceDataDb: "Server=sqlserver,1433;Database=ReferenceDataDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+      Consul__Host: "consul"
+      Redis__ConnectionString: "redis:6379"
+      Consul__Sidecar__Enabled: "true"
     ports:
       - "8081:8080"
+    volumes:
+      - reference-data-service-sidecar-id:/consul-sidecar
     depends_on:
       sqlserver:
+        condition: service_healthy
+      consul:
+        condition: service_started
+      redis:
         condition: service_healthy
     networks:
       - greenfinance-network
 
+  # Consul Connect sidecar for reference-data-service (inbound side of the
+  # scoped service mesh — see docs/architecture.md "Service mesh"). Shares
+  # reference-data-service's network namespace so it can reach the app on
+  # 127.0.0.1:8080, and a small volume so it can read the sidecar proxy ID the
+  # app wrote after registering (Consul auto-generates that ID and rejects an
+  # explicit one, so it can't be a static command-line flag here). -tls-disabled
+  # only affects the control-plane channel (dataplane -> Consul server);
+  # data-plane mTLS between services is issued independently by Consul's
+  # Connect CA regardless of this flag.
+  reference-data-service-sidecar:
+    image: hashicorp/consul-dataplane:1.9
+    container_name: greenfinance-reference-data-service-sidecar
+    network_mode: "service:reference-data-service"
+    volumes:
+      - reference-data-service-sidecar-id:/consul-sidecar
+    # The app writes /consul-sidecar/proxy-id only after it successfully
+    # registers with Consul, which can race the sidecar's own startup — retry
+    # on failure rather than requiring strict start-order coordination.
+    restart: on-failure:10
+    command:
+      - "-addresses=consul"
+      - "-grpc-port=8502"
+      - "-tls-disabled"
+      - "-log-level=info"
+      - "-proxy-id-path=/consul-sidecar/proxy-id"
+      - "-proxy-node-name=consul-dev"
+    depends_on:
+      reference-data-service:
+        condition: service_started
+      consul:
+        condition: service_started
+
+  # Scale with: docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --scale transaction-service=3
+  # No container_name/host port here (by design) — Compose needs to assign
+  # unique replica names, and multiple replicas can't share one host port.
+  # Reachable only through the gateway (http://localhost:8080) when scaled.
+  # Direct-to-instance debugging: docker compose exec transaction-service curl -s localhost:8080/health
   transaction-service:
     build:
       context: ..
       dockerfile: src/Services/TransactionService/TransactionService.Api/Dockerfile
-    container_name: greenfinance-transaction-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "transaction-service"}]'
     environment:
       ConnectionStrings__TransactionDb: "Server=sqlserver,1433;Database=TransactionDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
-    ports:
-      - "8082:8080"
+      Consul__Host: "consul"
     depends_on:
       sqlserver:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      consul:
+        condition: service_started
     networks:
       - greenfinance-network
 
+  # Scale with: docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --scale esg-service=2
+  # No container_name/host port here (by design) — see transaction-service above.
   esg-service:
     build:
       context: ..
       dockerfile: src/Services/ESGService/ESGService.Api/Dockerfile
-    container_name: greenfinance-esg-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "esg-service"}]'
     environment:
       ConnectionStrings__EsgDb: "Server=sqlserver,1433;Database=EsgDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
-      ReferenceDataService__BaseUrl: "http://reference-data-service:8080/"
-    ports:
-      - "8083:8080"
+      # Routed through this container's own Consul Connect sidecar (see
+      # esg-service-sidecar below) instead of the direct reference-data-service:8080
+      # address — mTLS + intentions apply to this call now (docs/architecture.md
+      # "Service mesh"). Local (non-Docker) dev keeps the plain address in
+      # appsettings.json, since there's no sidecar outside this compose stack.
+      ReferenceDataService__BaseUrl: "http://localhost:9191/"
+      Consul__Host: "consul"
+      Consul__Sidecar__Enabled: "true"
+      Consul__Sidecar__Upstreams__0__DestinationName: "reference-data-service"
+      Consul__Sidecar__Upstreams__0__LocalBindPort: "9191"
+    volumes:
+      - esg-service-sidecar-id:/consul-sidecar
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -88,25 +202,67 @@ services:
         condition: service_healthy
       reference-data-service:
         condition: service_started
+      reference-data-service-sidecar:
+        condition: service_started
+      consul:
+        condition: service_started
     networks:
       - greenfinance-network
+
+  # Consul Connect sidecar for esg-service (outbound side of the scoped
+  # service mesh) — exposes reference-data-service as an upstream on
+  # 127.0.0.1:9191 (shared network namespace with esg-service), so
+  # ESGService's ReferenceDataService__BaseUrl can call through it instead of
+  # the direct reference-data-service:8080 address. NOTE: network_mode:
+  # "service:esg-service" ties this sidecar to a single esg-service
+  # container — if esg-service is scaled (`--scale esg-service=N`), only one
+  # replica gets a working sidecar; this is a known Compose limitation, not
+  # something consul-dataplane/Consul itself can fix (real sidecar-per-pod
+  # injection is a Kubernetes-level concept).
+  esg-service-sidecar:
+    image: hashicorp/consul-dataplane:1.9
+    container_name: greenfinance-esg-service-sidecar
+    network_mode: "service:esg-service"
+    volumes:
+      - esg-service-sidecar-id:/consul-sidecar
+    restart: on-failure:10
+    command:
+      - "-addresses=consul"
+      - "-grpc-port=8502"
+      - "-tls-disabled"
+      - "-log-level=info"
+      - "-proxy-id-path=/consul-sidecar/proxy-id"
+      - "-proxy-node-name=consul-dev"
+    depends_on:
+      esg-service:
+        condition: service_started
+      consul:
+        condition: service_started
 
   report-service:
     build:
       context: ..
       dockerfile: src/Services/ReportService/ReportService.Api/Dockerfile
     container_name: greenfinance-report-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "report-service"}]'
     environment:
       ConnectionStrings__ReportDb: "Server=sqlserver,1433;Database=ReportDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
+      Consul__Host: "consul"
+      Redis__ConnectionString: "redis:6379"
     ports:
       - "8084:8080"
     depends_on:
       sqlserver:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      consul:
+        condition: service_started
+      redis:
         condition: service_healthy
     networks:
       - greenfinance-network
@@ -116,11 +272,14 @@ services:
       context: ..
       dockerfile: src/Services/NotificationService/NotificationService.Api/Dockerfile
     container_name: greenfinance-notification-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "notification-service"}]'
     environment:
       ConnectionStrings__NotificationDb: "Server=sqlserver,1433;Database=NotificationDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
+      Consul__Host: "consul"
     ports:
       - "8085:8080"
     depends_on:
@@ -128,6 +287,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      consul:
+        condition: service_started
     networks:
       - greenfinance-network
 
@@ -136,6 +297,10 @@ services:
       context: ..
       dockerfile: src/ApiGateway/Dockerfile
     container_name: greenfinance-gateway
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "api-gateway"}]'
+    environment:
+      Consul__Host: "consul"
     ports:
       - "8080:8080"
     depends_on:
@@ -144,9 +309,71 @@ services:
       - reference-data-service
       - report-service
       - notification-service
+      - consul
+    networks:
+      - greenfinance-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: greenfinance-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - greenfinance-network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: greenfinance-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - greenfinance-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: greenfinance-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: "mailhog:1025"
+      GF_SMTP_FROM_ADDRESS: "alerts@greenfinance.local"
+      GF_SMTP_SKIP_VERIFY: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - mailhog
+    networks:
+      - greenfinance-network
+
+  datadog-agent:
+    image: datadog/agent:latest
+    container_name: greenfinance-datadog-agent
+    environment:
+      DD_API_KEY: "${DD_API_KEY}"
+      DD_SITE: "${DD_SITE:-datadoghq.com}"
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_CONTAINER_EXCLUDE: "name:greenfinance-datadog-agent"
+      DD_APM_ENABLED: "false"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
     networks:
       - greenfinance-network
 
 networks:
   greenfinance-network:
     driver: bridge
+
+volumes:
+  reference-data-service-sidecar-id:
+  esg-service-sidecar-id:

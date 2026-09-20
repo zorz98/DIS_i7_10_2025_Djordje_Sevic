@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using ESGService.Domain;
 using FluentAssertions;
 using Moq;
@@ -11,9 +12,10 @@ public class EsgCalculationServiceTests
     private readonly Mock<IEsgResultRepository> _repository = new();
     private readonly Co2Calculator _co2Calculator = new();
     private readonly EsgScoreCalculator _scoreCalculator = new();
+    private readonly EsgMetrics _metrics = new(new Meter("ESGService.UnitTests"));
 
     private EsgCalculationService CreateService() =>
-        new(_referenceDataClient.Object, _co2Calculator, _scoreCalculator, _repository.Object);
+        new(_referenceDataClient.Object, _co2Calculator, _scoreCalculator, _repository.Object, _metrics);
 
     [Fact]
     public async Task ProcessAsync_Should_Save_Calculated_Result_When_ReferenceDataService_Is_Available()

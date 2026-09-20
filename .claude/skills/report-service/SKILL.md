@@ -46,7 +46,32 @@ dotnet test tests/ReportService.IntegrationTests/ReportService.IntegrationTests.
 
 `ReportsApiTests` namerno publikuje oba eventa nazad-nazad da uhvati regresiju te
 race-condition — ne "popravljaj" test dodavanjem veštačkog delay-a između publish
-poziva.
+poziva. Iz istog razloga, uslov u polling petlji mora da čeka na **potpuno** stanje
+(npr. i `TotalExpenses > 0`, ne samo da red postoji) — inače test lažno-pozitivno
+prekine na privremenom placeholder redu.
+
+Servis se registruje u Consul (`GreenFinance.ServiceDiscovery`) i izlaže `/metrics`
+(`GreenFinance.Observability`) — nema sopstveni business meter.
+
+## Keš (Redis, kratak TTL + eksplicitna invalidacija)
+
+`GET /reports/company/{id}?month=&year=` je keširan preko `ReportCache`
+(`ReportService.Api/ReportCache.cs`) — cache-aside direktno u `ReportsController`
+(nema repository interfejs pogodan za dekorisanje ovde, za razliku od
+ReferenceDataService). Ključ: `report:{companyId}:{year}:{month}`, TTL **45s**
+(za razliku od ReferenceDataService-a, ovi podaci se stvarno menjaju — kratak TTL +
+invalidacija, ne dugotrajan keš).
+
+**Zašto oba konzumera vraćaju `DateOnly`**: `ITransactionRecordRepository.
+AddTransactionAsync`/`ApplyEsgResultAsync` vraćaju period (`Year`/`Month`)
+upisanog reda, ne `Task`/`void` — konzumeri to koriste da pozovu
+`ReportCache.InvalidateAsync(...)` za tačan `(companyId, year, month)` odmah posle
+upisa, tako da naredni `GET` u istom periodu ne vidi zastarele podatke ni unutar
+45s prozora. Ovo **ne menja** upsert/race-condition logiku iz sekcije iznad —
+invalidacija se dešava tek posle uspešnog upisa, nikad pre.
+
+Isti try/catch fallback obrazac kao ReferenceDataService — Redis nedostupan nikad
+ne obara `/reports`, samo se ne keš-uje taj poziv.
 
 ## EF Core migracije
 
