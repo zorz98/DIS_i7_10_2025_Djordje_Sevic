@@ -1,0 +1,321 @@
+{
+  "info": {
+    "name": "GreenFinance",
+    "description": "ESG procena finansijskih transakcija — mikroservisni sistem. Uputstvo: importuj i pripadajući `GreenFinance.postman_environment.json` (direktni portovi po servisu), pa pokreni 'Create Transaction' iz foldera Transactions prvi (popunjava collection varijable `transactionId`/`companyId` koje koriste ostali requesti), zatim ostale po redu.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gatewayUrl", "value": "http://localhost:8080", "type": "string" },
+    { "key": "transactionId", "value": "", "type": "string" },
+    { "key": "companyId", "value": "1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Create Transaction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set(\"transactionId\", body.id);",
+                  "    pm.collectionVariables.set(\"companyId\", body.companyId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyId\": 101,\n  \"category\": \"Travel\",\n  \"amount\": 1250.50,\n  \"currency\": \"EUR\",\n  \"date\": \"2026-09-15\"\n}"
+            },
+            "url": {
+              "raw": "{{gatewayUrl}}/transactions",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["transactions"]
+            }
+          }
+        },
+        {
+          "name": "Get All Transactions",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/transactions",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["transactions"]
+            }
+          }
+        },
+        {
+          "name": "Get Transaction By Id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/transactions/{{transactionId}}",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["transactions", "{{transactionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Transactions By Company",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/transactions/company/{{companyId}}",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["transactions", "company", "{{companyId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "ESG",
+      "item": [
+        {
+          "name": "Get ESG Result By Transaction",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/esg/transaction/{{transactionId}}",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["esg", "transaction", "{{transactionId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get ESG Results By Company",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/esg/company/{{companyId}}",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["esg", "company", "{{companyId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reference Data",
+      "item": [
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/categories",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Category By Name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/categories/Travel",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["categories", "Travel"]
+            }
+          }
+        },
+        {
+          "name": "Get All Emission Factors",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/emission-factors",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["emission-factors"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Get Company Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/reports/company/{{companyId}}?month=9&year=2026",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["reports", "company", "{{companyId}}"],
+              "query": [
+                { "key": "month", "value": "9" },
+                { "key": "year", "value": "2026" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Notifications By Company",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/notifications/company/{{companyId}}",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["notifications", "company", "{{companyId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "ReferenceDataService Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{referenceDataUrl}}/health",
+              "host": ["{{referenceDataUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "TransactionService Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{transactionUrl}}/health",
+              "host": ["{{transactionUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "ESGService Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{esgUrl}}/health",
+              "host": ["{{esgUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "ReportService Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{reportUrl}}/health",
+              "host": ["{{reportUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "NotificationService Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{notificationUrl}}/health",
+              "host": ["{{notificationUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "ApiGateway Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{gatewayUrl}}/metrics",
+              "host": ["{{gatewayUrl}}"],
+              "path": ["metrics"]
+            }
+          }
+        },
+        {
+          "name": "ReferenceDataService Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{referenceDataUrl}}/metrics",
+              "host": ["{{referenceDataUrl}}"],
+              "path": ["metrics"]
+            }
+          }
+        },
+        {
+          "name": "TransactionService Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{transactionUrl}}/metrics",
+              "host": ["{{transactionUrl}}"],
+              "path": ["metrics"]
+            }
+          }
+        },
+        {
+          "name": "ESGService Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{esgUrl}}/metrics",
+              "host": ["{{esgUrl}}"],
+              "path": ["metrics"]
+            }
+          }
+        },
+        {
+          "name": "ReportService Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{reportUrl}}/metrics",
+              "host": ["{{reportUrl}}"],
+              "path": ["metrics"]
+            }
+          }
+        },
+        {
+          "name": "NotificationService Metrics",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{notificationUrl}}/metrics",
+              "host": ["{{notificationUrl}}"],
+              "path": ["metrics"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
