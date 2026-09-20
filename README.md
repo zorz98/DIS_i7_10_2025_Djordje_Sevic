@@ -26,8 +26,12 @@ na osnovu kategorije troška, iznosa i CO2 faktora.
 ## Pokretanje (razvojno okruženje)
 
 ```bash
-docker compose -f deploy/docker-compose.yml up --build
+cp deploy/.env.example deploy/.env
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up --build
 ```
+
+Gateway je dostupan na `http://localhost:8080`, RabbitMQ management UI na
+`http://localhost:15672` (guest/guest).
 
 Detaljno uputstvo za build/test/deploy po fazama nalazi se u
 [`docs/deployment.md`](docs/deployment.md).

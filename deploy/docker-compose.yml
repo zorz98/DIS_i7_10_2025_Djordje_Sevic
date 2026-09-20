@@ -1,0 +1,152 @@
+name: greenfinance
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: greenfinance-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD}"
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - greenfinance-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: greenfinance-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - greenfinance-network
+
+  reference-data-service:
+    build:
+      context: ..
+      dockerfile: src/Services/ReferenceDataService/ReferenceDataService.Api/Dockerfile
+    container_name: greenfinance-reference-data-service
+    environment:
+      ConnectionStrings__ReferenceDataDb: "Server=sqlserver,1433;Database=ReferenceDataDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+    ports:
+      - "8081:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - greenfinance-network
+
+  transaction-service:
+    build:
+      context: ..
+      dockerfile: src/Services/TransactionService/TransactionService.Api/Dockerfile
+    container_name: greenfinance-transaction-service
+    environment:
+      ConnectionStrings__TransactionDb: "Server=sqlserver,1433;Database=TransactionDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Username: "guest"
+      RabbitMq__Password: "guest"
+    ports:
+      - "8082:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - greenfinance-network
+
+  esg-service:
+    build:
+      context: ..
+      dockerfile: src/Services/ESGService/ESGService.Api/Dockerfile
+    container_name: greenfinance-esg-service
+    environment:
+      ConnectionStrings__EsgDb: "Server=sqlserver,1433;Database=EsgDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Username: "guest"
+      RabbitMq__Password: "guest"
+      ReferenceDataService__BaseUrl: "http://reference-data-service:8080/"
+    ports:
+      - "8083:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      reference-data-service:
+        condition: service_started
+    networks:
+      - greenfinance-network
+
+  report-service:
+    build:
+      context: ..
+      dockerfile: src/Services/ReportService/ReportService.Api/Dockerfile
+    container_name: greenfinance-report-service
+    environment:
+      ConnectionStrings__ReportDb: "Server=sqlserver,1433;Database=ReportDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Username: "guest"
+      RabbitMq__Password: "guest"
+    ports:
+      - "8084:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - greenfinance-network
+
+  notification-service:
+    build:
+      context: ..
+      dockerfile: src/Services/NotificationService/NotificationService.Api/Dockerfile
+    container_name: greenfinance-notification-service
+    environment:
+      ConnectionStrings__NotificationDb: "Server=sqlserver,1433;Database=NotificationDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
+      RabbitMq__Host: "rabbitmq"
+      RabbitMq__Username: "guest"
+      RabbitMq__Password: "guest"
+    ports:
+      - "8085:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - greenfinance-network
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: src/ApiGateway/Dockerfile
+    container_name: greenfinance-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - transaction-service
+      - esg-service
+      - reference-data-service
+      - report-service
+      - notification-service
+    networks:
+      - greenfinance-network
+
+networks:
+  greenfinance-network:
+    driver: bridge
