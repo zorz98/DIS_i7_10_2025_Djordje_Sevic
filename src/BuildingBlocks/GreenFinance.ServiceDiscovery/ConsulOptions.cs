@@ -24,4 +24,26 @@ public sealed class ConsulOptions
     public int ServicePort { get; set; } = 8080;
 
     public string HealthCheckPath { get; set; } = "/health";
+
+    /// <summary>
+    /// Optional Consul Connect sidecar registration. Left <c>null</c> (the
+    /// default) for every service that doesn't participate in the scoped
+    /// service mesh — this is purely additive and does not change registration
+    /// behavior for services that don't configure it.
+    /// </summary>
+    public ConsulSidecarOptions? Sidecar { get; set; }
+}
+
+public sealed class ConsulSidecarOptions
+{
+    public bool Enabled { get; set; }
+
+    public List<ConsulUpstreamOptions> Upstreams { get; set; } = [];
+}
+
+public sealed class ConsulUpstreamOptions
+{
+    public required string DestinationName { get; set; }
+
+    public int LocalBindPort { get; set; }
 }

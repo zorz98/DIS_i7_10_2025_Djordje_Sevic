@@ -47,6 +47,24 @@ public sealed class ConsulRegistrationHostedService(
             },
         };
 
+        if (config.Sidecar is { Enabled: true } sidecar)
+        {
+            registration.Connect = new AgentServiceConnect
+            {
+                SidecarService = new AgentServiceRegistration
+                {
+                    Proxy = sidecar.Upstreams.Count == 0
+                        ? null
+                        : new AgentServiceProxy
+                        {
+                            Upstreams = sidecar.Upstreams
+                                .Select(u => new AgentServiceProxyUpstream { DestinationName = u.DestinationName, LocalBindPort = u.LocalBindPort })
+                                .ToArray(),
+                        },
+                },
+            };
+        }
+
         // Consul may still be starting up when this service does (e.g. a fresh
         // `docker compose up`) — retry a few times before giving up.
         for (var attempt = 1; attempt <= MaxAttempts; attempt++)
