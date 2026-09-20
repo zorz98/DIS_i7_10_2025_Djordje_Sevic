@@ -4,6 +4,11 @@
     <Project Path="src/BuildingBlocks/GreenFinance.Contracts/GreenFinance.Contracts.csproj" />
   </Folder>
   <Folder Name="/src/Services/" />
+  <Folder Name="/src/Services/ESGService/">
+    <Project Path="src/Services/ESGService/ESGService.Api/ESGService.Api.csproj" />
+    <Project Path="src/Services/ESGService/ESGService.Domain/ESGService.Domain.csproj" />
+    <Project Path="src/Services/ESGService/ESGService.Infrastructure/ESGService.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Services/ReferenceDataService/">
     <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Api/ReferenceDataService.Api.csproj" />
     <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Domain/ReferenceDataService.Domain.csproj" />
@@ -15,6 +20,7 @@
     <Project Path="src/Services/TransactionService/TransactionService.Infrastructure/TransactionService.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ESGService.UnitTests/ESGService.UnitTests.csproj" />
     <Project Path="tests/ReferenceDataService.UnitTests/ReferenceDataService.UnitTests.csproj" />
     <Project Path="tests/TransactionService.UnitTests/TransactionService.UnitTests.csproj" />
   </Folder>
