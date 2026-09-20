@@ -1,0 +1,37 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    branches: [main, develop, uat]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude PR Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Use the pr-reviewer subagent to review this pull request
+            (#${{ github.event.pull_request.number }}) against this repo's
+            GreenFinance-specific microservices conventions (see
+            .claude/agents/pr-reviewer.md for the full checklist).
+
+            Post your findings as a single summary comment on the PR conversation
+            (not inline line comments) — most severe issues first — and end with a
+            clear verdict: ready to merge, or blocked on N issues.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
+          use_sticky_comment: true
