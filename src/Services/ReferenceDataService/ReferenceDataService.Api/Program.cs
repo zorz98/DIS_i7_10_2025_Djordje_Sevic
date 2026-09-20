@@ -17,7 +17,20 @@ builder.Services.AddDbContext<ReferenceDataDbContext>(options =>
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+    var connectionString = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+    options.ConfigurationOptions = new StackExchange.Redis.ConfigurationOptions
+    {
+        EndPoints = { connectionString },
+        // Redis is a best-effort cache in front of the database (see
+        // CachedEmissionFactorRepository) — if it's unreachable, requests should
+        // fail fast into the cache-miss fallback path instead of hanging.
+        AbortOnConnectFail = false,
+        ConnectTimeout = 500,
+        SyncTimeout = 500,
+        AsyncTimeout = 500,
+        ConnectRetry = 1,
+        ReconnectRetryPolicy = new StackExchange.Redis.LinearRetry(500),
+    };
 });
 
 builder.Services.AddScoped<EmissionFactorRepository>();
