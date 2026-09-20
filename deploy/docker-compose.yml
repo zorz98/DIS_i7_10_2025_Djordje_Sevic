@@ -174,6 +174,46 @@ services:
     networks:
       - greenfinance-network
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: greenfinance-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - greenfinance-network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: greenfinance-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - greenfinance-network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: greenfinance-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SMTP_ENABLED: "true"
+      GF_SMTP_HOST: "mailhog:1025"
+      GF_SMTP_FROM_ADDRESS: "alerts@greenfinance.local"
+      GF_SMTP_SKIP_VERIFY: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - mailhog
+    networks:
+      - greenfinance-network
+
 networks:
   greenfinance-network:
     driver: bridge

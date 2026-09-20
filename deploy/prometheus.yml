@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "transaction-service"
+    static_configs:
+      - targets: ["transaction-service:8080"]
+
+  - job_name: "esg-service"
+    static_configs:
+      - targets: ["esg-service:8080"]
+
+  - job_name: "reference-data-service"
+    static_configs:
+      - targets: ["reference-data-service:8080"]
+
+  - job_name: "report-service"
+    static_configs:
+      - targets: ["report-service:8080"]
+
+  - job_name: "notification-service"
+    static_configs:
+      - targets: ["notification-service:8080"]
+
+  - job_name: "api-gateway"
+    static_configs:
+      - targets: ["gateway:8080"]

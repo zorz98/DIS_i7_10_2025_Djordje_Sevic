@@ -1,0 +1,61 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: ops-email
+    receivers:
+      - uid: ops-email-receiver
+        type: email
+        settings:
+          addresses: ops@greenfinance.local
+          singleEmail: true
+
+policies:
+  - orgId: 1
+    receiver: ops-email
+    group_by: ["alertname"]
+    group_wait: 10s
+    group_interval: 1m
+    repeat_interval: 5m
+
+groups:
+  - orgId: 1
+    name: greenfinance-alerts
+    folder: GreenFinance
+    interval: 30s
+    rules:
+      - uid: esg-circuit-breaker-open
+        title: "ESGService circuit breaker open"
+        condition: C
+        for: 30s
+        noDataState: OK
+        execErrState: Error
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: esg_referencedata_circuit_state
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: "-100"
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+              refId: C
+        annotations:
+          summary: "ESGService's circuit breaker to ReferenceDataService is open (state={{ $values.A }})"
+        labels:
+          severity: warning
