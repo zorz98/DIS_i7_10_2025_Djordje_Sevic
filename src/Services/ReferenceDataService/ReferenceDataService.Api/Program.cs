@@ -15,6 +15,11 @@ builder.Services.AddHealthChecks();
 builder.Services.AddDbContext<ReferenceDataDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("ReferenceDataDb")));
 
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+});
+
 builder.Services.AddScoped<IEmissionFactorRepository, EmissionFactorRepository>();
 builder.Services.AddConsulServiceDiscovery(builder.Configuration);
 builder.Services.AddGreenFinanceMetrics("ReferenceDataService");

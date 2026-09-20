@@ -64,6 +64,7 @@ services:
     environment:
       ConnectionStrings__ReferenceDataDb: "Server=sqlserver,1433;Database=ReferenceDataDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       Consul__Host: "consul"
+      Redis__ConnectionString: "redis:6379"
     ports:
       - "8081:8080"
     depends_on:
@@ -71,6 +72,8 @@ services:
         condition: service_healthy
       consul:
         condition: service_started
+      redis:
+        condition: service_healthy
     networks:
       - greenfinance-network
 
