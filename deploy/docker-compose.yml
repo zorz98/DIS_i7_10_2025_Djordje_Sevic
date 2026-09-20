@@ -36,7 +36,13 @@ services:
   consul:
     image: hashicorp/consul:1.19
     container_name: greenfinance-consul
-    command: "agent -dev -client=0.0.0.0"
+    # -node is pinned so the dev-agent's node name stays stable across container
+    # recreates (it otherwise defaults to the container's own hostname, which
+    # changes every restart and breaks node-scoped lookups that consul-dataplane
+    # sidecars rely on). Connect (mTLS mesh) is already enabled by default in
+    # dev mode with an auto-generated built-in CA; -hcl here just makes that
+    # explicit for anyone reading this file.
+    command: "agent -dev -client=0.0.0.0 -node=consul-dev -hcl=\"connect { enabled = true }\""
     ports:
       - "8500:8500"
     networks:
