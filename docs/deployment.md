@@ -95,3 +95,22 @@ Pokreće se na push ka `develop` (DEV faza), `uat` (UAT faza) i `main` (PROD faz
 
 Ovim je pipeline strukturiran po fazama (dev/uat/prod) i spreman da se poveže na
 stvarnu infrastrukturu bez menjanja build/test/push logike.
+
+## 5. PR review pipeline (`.github/workflows/pr-review.yml`)
+
+Pokreće se na svaki otvoren/ažuriran Pull Request ka `main`/`develop`/`uat`, preko
+zvanične [Claude Code GitHub Action](https://github.com/anthropics/claude-code-action)
+(`anthropics/claude-code-action@v1`):
+
+1. Checkout-uje PR (pun git history, `fetch-depth: 0`, da bi `git diff` prema
+   base branch-u radio ispravno).
+2. Pokreće Claude sa promptom koji dispatch-uje na projekat-specifičan
+   `pr-reviewer` subagent (`.claude/agents/pr-reviewer.md`) — checklist prilagođen
+   GreenFinance konvencijama (event contracts, EF migracije, MassTransit wiring,
+   Docker/compose sinhronizacija, test coverage).
+3. Nalaze posta kao **jedan sumarni "sticky" komentar** na PR-u (`use_sticky_comment:
+   true`) — svaki novi push ažurira isti komentar umesto da kreira nov.
+
+Zahteva GitHub Actions secret `ANTHROPIC_API_KEY` (Settings → Secrets and variables
+→ Actions) sa validnim Anthropic API ključem. Svaki pokrenuti review je pravi API
+poziv i ima trošak — po potrebi suziti `types:`/`branches:` filter u workflow-u.
