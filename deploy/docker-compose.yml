@@ -160,6 +160,8 @@ services:
       context: ..
       dockerfile: src/ApiGateway/Dockerfile
     container_name: greenfinance-gateway
+    environment:
+      Consul__Host: "consul"
     ports:
       - "8080:8080"
     depends_on:
@@ -168,6 +170,7 @@ services:
       - reference-data-service
       - report-service
       - notification-service
+      - consul
     networks:
       - greenfinance-network
 
