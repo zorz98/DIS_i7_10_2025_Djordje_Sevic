@@ -9,6 +9,7 @@ public sealed class EsgCalculatedEventConsumer(ITransactionRecordRepository repo
     public Task Consume(ConsumeContext<EsgCalculatedEvent> context)
     {
         var message = context.Message;
-        return repository.ApplyEsgResultAsync(message.TransactionId, message.Co2Kg, message.OverallScore, context.CancellationToken);
+        return repository.ApplyEsgResultAsync(
+            message.TransactionId, message.CompanyId, message.Category, message.Co2Kg, message.OverallScore, context.CancellationToken);
     }
 }

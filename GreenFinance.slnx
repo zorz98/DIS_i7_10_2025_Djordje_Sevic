@@ -32,10 +32,15 @@
     <Project Path="src/Services/TransactionService/TransactionService.Infrastructure/TransactionService.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ESGService.IntegrationTests/ESGService.IntegrationTests.csproj" />
     <Project Path="tests/ESGService.UnitTests/ESGService.UnitTests.csproj" />
+    <Project Path="tests/NotificationService.IntegrationTests/NotificationService.IntegrationTests.csproj" />
     <Project Path="tests/NotificationService.UnitTests/NotificationService.UnitTests.csproj" />
+    <Project Path="tests/ReferenceDataService.IntegrationTests/ReferenceDataService.IntegrationTests.csproj" />
     <Project Path="tests/ReferenceDataService.UnitTests/ReferenceDataService.UnitTests.csproj" />
+    <Project Path="tests/ReportService.IntegrationTests/ReportService.IntegrationTests.csproj" />
     <Project Path="tests/ReportService.UnitTests/ReportService.UnitTests.csproj" />
+    <Project Path="tests/TransactionService.IntegrationTests/TransactionService.IntegrationTests.csproj" />
     <Project Path="tests/TransactionService.UnitTests/TransactionService.UnitTests.csproj" />
   </Folder>
 </Solution>

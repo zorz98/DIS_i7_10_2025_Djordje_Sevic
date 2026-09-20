@@ -5,42 +5,86 @@ namespace ReportService.Infrastructure;
 
 public sealed class TransactionRecordRepository(ReportDbContext dbContext) : ITransactionRecordRepository
 {
-    public async Task AddTransactionAsync(
+    public Task AddTransactionAsync(
         Guid transactionId, int companyId, string category, decimal amount, DateOnly date,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        UpsertAsync(
+            transactionId,
+            createIfMissing: () => new TransactionRecord
+            {
+                TransactionId = transactionId,
+                CompanyId = companyId,
+                Category = category,
+                Amount = amount,
+                Date = date,
+            },
+            // EsgCalculated may have arrived first (no cross-queue ordering guarantee) and
+            // created a placeholder row; fill in the transaction details onto it.
+            applyTo: record =>
+            {
+                record.CompanyId = companyId;
+                record.Category = category;
+                record.Amount = amount;
+                record.Date = date;
+            },
+            cancellationToken);
+
+    public Task ApplyEsgResultAsync(
+        Guid transactionId, int companyId, string category, decimal co2Kg, int overallScore,
+        CancellationToken cancellationToken = default) =>
+        UpsertAsync(
+            transactionId,
+            // TransactionCreated may not have been processed yet; create a placeholder row so
+            // the ESG result is not lost, to be filled in once TransactionCreated arrives.
+            createIfMissing: () => new TransactionRecord
+            {
+                TransactionId = transactionId,
+                CompanyId = companyId,
+                Category = category,
+                Amount = 0m,
+                Date = DateOnly.FromDateTime(DateTime.UtcNow),
+                Co2Kg = co2Kg,
+                OverallScore = overallScore,
+            },
+            applyTo: record =>
+            {
+                record.Co2Kg = co2Kg;
+                record.OverallScore = overallScore;
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// Upserts by TransactionId. The two consumers race on rows they both may create, so a
+    /// concurrent insert can violate the primary key; when that happens we fall back to
+    /// updating the row the other consumer just committed.
+    /// </summary>
+    private async Task UpsertAsync(
+        Guid transactionId,
+        Func<TransactionRecord> createIfMissing,
+        Action<TransactionRecord> applyTo,
+        CancellationToken cancellationToken)
     {
         var existing = await dbContext.TransactionRecords.FindAsync([transactionId], cancellationToken);
         if (existing is not null)
         {
+            applyTo(existing);
+            await dbContext.SaveChangesAsync(cancellationToken);
             return;
         }
 
-        dbContext.TransactionRecords.Add(new TransactionRecord
-        {
-            TransactionId = transactionId,
-            CompanyId = companyId,
-            Category = category,
-            Amount = amount,
-            Date = date,
-        });
+        dbContext.TransactionRecords.Add(createIfMissing());
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task ApplyEsgResultAsync(
-        Guid transactionId, decimal co2Kg, int overallScore, CancellationToken cancellationToken = default)
-    {
-        var record = await dbContext.TransactionRecords.FindAsync([transactionId], cancellationToken);
-        if (record is null)
+        try
         {
-            // TransactionCreated is expected to be processed before EsgCalculated; if it was not,
-            // there is nothing to attach the ESG result to yet.
-            return;
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
-
-        record.Co2Kg = co2Kg;
-        record.OverallScore = overallScore;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        catch (DbUpdateException)
+        {
+            dbContext.ChangeTracker.Clear();
+            var record = await dbContext.TransactionRecords.SingleAsync(r => r.TransactionId == transactionId, cancellationToken);
+            applyTo(record);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     public async Task<IReadOnlyList<TransactionRecord>> GetByCompanyAndPeriodAsync(

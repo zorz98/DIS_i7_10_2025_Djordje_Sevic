@@ -7,7 +7,8 @@ public interface ITransactionRecordRepository
         CancellationToken cancellationToken = default);
 
     Task ApplyEsgResultAsync(
-        Guid transactionId, decimal co2Kg, int overallScore, CancellationToken cancellationToken = default);
+        Guid transactionId, int companyId, string category, decimal co2Kg, int overallScore,
+        CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TransactionRecord>> GetByCompanyAndPeriodAsync(
         int companyId, int year, int month, CancellationToken cancellationToken = default);

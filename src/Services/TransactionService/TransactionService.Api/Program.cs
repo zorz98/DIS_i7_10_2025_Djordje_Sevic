@@ -17,7 +17,13 @@ builder.Services.AddMassTransit(x =>
 {
     x.UsingRabbitMq((context, cfg) =>
     {
-        cfg.Host(builder.Configuration["RabbitMq:Host"] ?? "localhost", "/", h =>
+        // Configuration is read lazily here (not into a variable above AddMassTransit) because
+        // WebApplicationFactory-based tests inject overrides into builder.Configuration only
+        // after this configurator delegate is captured, but before it actually runs.
+        var rabbitHost = builder.Configuration["RabbitMq:Host"] ?? "localhost";
+        var rabbitPort = builder.Configuration.GetValue<int?>("RabbitMq:Port") ?? 5672;
+
+        cfg.Host(new Uri($"rabbitmq://{rabbitHost}:{rabbitPort}/"), h =>
         {
             h.Username(builder.Configuration["RabbitMq:Username"] ?? "guest");
             h.Password(builder.Configuration["RabbitMq:Password"] ?? "guest");
