@@ -67,9 +67,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine image tag
-        id: tag
+      - name: Determine image metadata
+        id: meta
         run: |
+          # GHCR image references must be lowercase; github.repository preserves the
+          # repository's original casing, so it has to be normalized here.
+          echo "repo_lc=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
           if [ "${{ github.ref_name }}" = "main" ]; then
             echo "tag=prod-${{ github.sha }}" >> "$GITHUB_OUTPUT"
           else
@@ -83,8 +86,8 @@ jobs:
           file: ${{ matrix.service.dockerfile }}
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.name }}:${{ steps.tag.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.name }}:${{ github.ref_name }}-latest
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.repo_lc }}/${{ matrix.service.name }}:${{ steps.meta.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ steps.meta.outputs.repo_lc }}/${{ matrix.service.name }}:${{ github.ref_name }}-latest
 
   deploy-dev:
     name: Deploy to DEV
