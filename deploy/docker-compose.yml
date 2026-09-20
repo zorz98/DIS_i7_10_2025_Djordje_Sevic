@@ -158,7 +158,12 @@ services:
       RabbitMq__Host: "rabbitmq"
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
-      ReferenceDataService__BaseUrl: "http://reference-data-service:8080/"
+      # Routed through this container's own Consul Connect sidecar (see
+      # esg-service-sidecar below) instead of the direct reference-data-service:8080
+      # address — mTLS + intentions apply to this call now (docs/architecture.md
+      # "Service mesh"). Local (non-Docker) dev keeps the plain address in
+      # appsettings.json, since there's no sidecar outside this compose stack.
+      ReferenceDataService__BaseUrl: "http://localhost:9191/"
       Consul__Host: "consul"
       Consul__Sidecar__Enabled: "true"
       Consul__Sidecar__Upstreams__0__DestinationName: "reference-data-service"
