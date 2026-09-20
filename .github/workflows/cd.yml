@@ -1,0 +1,113 @@
+name: CD
+
+on:
+  push:
+    branches: [develop, main]
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore GreenFinance.slnx
+
+      - name: Build
+        run: dotnet build GreenFinance.slnx --no-restore -c Release
+
+      - name: Unit tests
+        run: dotnet test GreenFinance.slnx --no-build -c Release --filter "FullyQualifiedName~UnitTests"
+
+      - name: Integration tests
+        run: dotnet test GreenFinance.slnx --no-build -c Release --filter "FullyQualifiedName~IntegrationTests"
+
+  build-and-push-images:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: build-test
+    strategy:
+      matrix:
+        service:
+          - name: reference-data-service
+            dockerfile: src/Services/ReferenceDataService/ReferenceDataService.Api/Dockerfile
+          - name: transaction-service
+            dockerfile: src/Services/TransactionService/TransactionService.Api/Dockerfile
+          - name: esg-service
+            dockerfile: src/Services/ESGService/ESGService.Api/Dockerfile
+          - name: report-service
+            dockerfile: src/Services/ReportService/ReportService.Api/Dockerfile
+          - name: notification-service
+            dockerfile: src/Services/NotificationService/NotificationService.Api/Dockerfile
+          - name: api-gateway
+            dockerfile: src/ApiGateway/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "tag=prod-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=dev-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push ${{ matrix.service.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.service.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.name }}:${{ steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.name }}:${{ github.ref_name }}-latest
+
+  deploy-dev:
+    name: Deploy to DEV
+    runs-on: ubuntu-latest
+    needs: build-and-push-images
+    if: github.ref_name == 'develop'
+    environment: development
+    steps:
+      - name: Deploy DEV stack
+        run: |
+          echo "Deploying GreenFinance images tagged 'develop-latest' to the DEV environment."
+          echo "Configure DEV_HOST / DEV_SSH_KEY secrets and an SSH deploy step (e.g. appleboy/ssh-action)"
+          echo "that runs 'docker compose -f deploy/docker-compose.yml pull && docker compose -f deploy/docker-compose.yml up -d' on the DEV host."
+
+  deploy-prod:
+    name: Deploy to PROD
+    runs-on: ubuntu-latest
+    needs: build-and-push-images
+    if: github.ref_name == 'main'
+    environment: production
+    steps:
+      - name: Deploy PROD stack
+        run: |
+          echo "Deploying GreenFinance images tagged 'main-latest' to the PROD environment."
+          echo "Configure PROD_HOST / PROD_SSH_KEY secrets and an SSH deploy step (e.g. appleboy/ssh-action)"
+          echo "that runs 'docker compose -f deploy/docker-compose.yml pull && docker compose -f deploy/docker-compose.yml up -d' on the PROD host."
