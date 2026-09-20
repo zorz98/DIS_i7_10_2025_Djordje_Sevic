@@ -17,6 +17,7 @@ public sealed class ReferenceDataServiceApiFactory : WebApplicationFactory<Progr
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:ReferenceDataDb"] = _sqlContainer.GetConnectionString(),
+                ["Consul:Enabled"] = "false",
             });
         });
     }

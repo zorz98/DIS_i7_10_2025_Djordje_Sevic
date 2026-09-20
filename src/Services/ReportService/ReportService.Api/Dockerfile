@@ -5,6 +5,7 @@ COPY ["src/Services/ReportService/ReportService.Api/ReportService.Api.csproj", "
 COPY ["src/Services/ReportService/ReportService.Domain/ReportService.Domain.csproj", "src/Services/ReportService/ReportService.Domain/"]
 COPY ["src/Services/ReportService/ReportService.Infrastructure/ReportService.Infrastructure.csproj", "src/Services/ReportService/ReportService.Infrastructure/"]
 COPY ["src/BuildingBlocks/GreenFinance.Contracts/GreenFinance.Contracts.csproj", "src/BuildingBlocks/GreenFinance.Contracts/"]
+COPY ["src/BuildingBlocks/GreenFinance.ServiceDiscovery/GreenFinance.ServiceDiscovery.csproj", "src/BuildingBlocks/GreenFinance.ServiceDiscovery/"]
 RUN dotnet restore "src/Services/ReportService/ReportService.Api/ReportService.Api.csproj"
 
 COPY . .

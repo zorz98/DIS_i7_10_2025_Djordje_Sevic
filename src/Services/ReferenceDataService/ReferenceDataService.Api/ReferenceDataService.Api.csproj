@@ -17,6 +17,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ReferenceDataService.Domain\ReferenceDataService.Domain.csproj" />
     <ProjectReference Include="..\ReferenceDataService.Infrastructure\ReferenceDataService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\GreenFinance.ServiceDiscovery\GreenFinance.ServiceDiscovery.csproj" />
   </ItemGroup>
 
 </Project>

@@ -19,6 +19,7 @@
     <ProjectReference Include="..\NotificationService.Domain\NotificationService.Domain.csproj" />
     <ProjectReference Include="..\NotificationService.Infrastructure\NotificationService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\GreenFinance.Contracts\GreenFinance.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\GreenFinance.ServiceDiscovery\GreenFinance.ServiceDiscovery.csproj" />
   </ItemGroup>
 
 </Project>

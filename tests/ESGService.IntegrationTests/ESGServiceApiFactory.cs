@@ -28,6 +28,7 @@ public sealed class ESGServiceApiFactory : WebApplicationFactory<Program>, IAsyn
                 ["RabbitMq:Username"] = "guest",
                 ["RabbitMq:Password"] = "guest",
                 ["ReferenceDataService:BaseUrl"] = "http://localhost:1/",
+                ["Consul:Enabled"] = "false",
             });
         });
     }

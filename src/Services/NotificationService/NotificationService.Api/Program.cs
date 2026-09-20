@@ -1,3 +1,4 @@
+using GreenFinance.ServiceDiscovery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using NotificationService.Api.Consumers;
@@ -15,6 +16,7 @@ builder.Services.AddDbContext<NotificationDbContext>(options =>
 
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<NotificationDecisionService>();
+builder.Services.AddConsulServiceDiscovery(builder.Configuration);
 
 builder.Services.AddMassTransit(x =>
 {

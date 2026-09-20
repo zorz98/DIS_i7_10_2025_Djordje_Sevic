@@ -1,3 +1,4 @@
+using GreenFinance.ServiceDiscovery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using ReportService.Api.Consumers;
@@ -15,6 +16,7 @@ builder.Services.AddDbContext<ReportDbContext>(options =>
 
 builder.Services.AddScoped<ITransactionRecordRepository, TransactionRecordRepository>();
 builder.Services.AddSingleton<ReportAggregator>();
+builder.Services.AddConsulServiceDiscovery(builder.Configuration);
 
 builder.Services.AddMassTransit(x =>
 {

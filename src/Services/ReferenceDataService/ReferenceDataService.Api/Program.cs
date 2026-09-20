@@ -1,3 +1,4 @@
+using GreenFinance.ServiceDiscovery;
 using Microsoft.EntityFrameworkCore;
 using ReferenceDataService.Domain;
 using ReferenceDataService.Infrastructure;
@@ -12,6 +13,7 @@ builder.Services.AddDbContext<ReferenceDataDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("ReferenceDataDb")));
 
 builder.Services.AddScoped<IEmissionFactorRepository, EmissionFactorRepository>();
+builder.Services.AddConsulServiceDiscovery(builder.Configuration);
 
 var app = builder.Build();
 

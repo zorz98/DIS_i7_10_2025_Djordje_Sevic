@@ -1,3 +1,4 @@
+using GreenFinance.ServiceDiscovery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using TransactionService.Domain;
@@ -13,6 +14,7 @@ builder.Services.AddDbContext<TransactionDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("TransactionDb")));
 
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+builder.Services.AddConsulServiceDiscovery(builder.Configuration);
 
 builder.Services.AddMassTransit(x =>
 {

@@ -27,6 +27,7 @@ public sealed class ReportServiceApiFactory : WebApplicationFactory<Program>, IA
                 ["RabbitMq:Port"] = _rabbitContainer.GetMappedPublicPort(5672).ToString(),
                 ["RabbitMq:Username"] = "guest",
                 ["RabbitMq:Password"] = "guest",
+                ["Consul:Enabled"] = "false",
             });
         });
     }

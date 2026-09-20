@@ -1,6 +1,7 @@
 using ESGService.Api.Consumers;
 using ESGService.Domain;
 using ESGService.Infrastructure;
+using GreenFinance.ServiceDiscovery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Http.Resilience;
@@ -19,6 +20,7 @@ builder.Services.AddScoped<IEsgResultRepository, EsgResultRepository>();
 builder.Services.AddSingleton<Co2Calculator>();
 builder.Services.AddSingleton<EsgScoreCalculator>();
 builder.Services.AddScoped<EsgCalculationService>();
+builder.Services.AddConsulServiceDiscovery(builder.Configuration);
 
 builder.Services
     .AddHttpClient<IReferenceDataClient, ReferenceDataClient>(client =>
