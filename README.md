@@ -4,7 +4,9 @@ GreenFinance je mikroservisna aplikacija koja kompanijama omogućava da unesu sv
 poslovne transakcije i dobiju procenu ESG (Environmental, Social, Governance) uticaja
 na osnovu kategorije troška, iznosa i CO2 faktora.
 
-> Status: u razvoju. Ovaj README se dopunjava kroz razvojne korake (DIS-01 ... DIS-13).
+> Osnovna verzija: 5 .NET mikroservisa, SQL Server po servisu, Docker, RabbitMQ, REST,
+> unit + integration testovi, GitHub Actions CI/CD, YARP gateway i Polly resilience na
+> sinhronoj komunikaciji.
 
 ## Sadržaj
 
@@ -35,3 +37,21 @@ Gateway je dostupan na `http://localhost:8080`, RabbitMQ management UI na
 
 Detaljno uputstvo za build/test/deploy po fazama nalazi se u
 [`docs/deployment.md`](docs/deployment.md).
+
+## Testiranje
+
+```bash
+dotnet build GreenFinance.slnx
+dotnet test GreenFinance.slnx --filter "FullyQualifiedName~UnitTests"
+dotnet test GreenFinance.slnx --filter "FullyQualifiedName~IntegrationTests"
+```
+
+Integracioni testovi koriste [Testcontainers](https://testcontainers.com/) (SQL
+Server + RabbitMQ) i zahtevaju pokrenut Docker.
+
+## CI/CD
+
+- **CI** (`.github/workflows/ci.yml`): na svaki PR i push ka `main`/`develop` —
+  restore, build, unit testovi, integracioni testovi, docker build.
+- **CD** (`.github/workflows/cd.yml`): na push ka `develop`/`main` — build, testovi,
+  push Docker image-a na GitHub Container Registry, deploy (DEV/PROD).
