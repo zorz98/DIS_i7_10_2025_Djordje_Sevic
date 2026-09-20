@@ -144,6 +144,7 @@ services:
       RabbitMq__Username: "guest"
       RabbitMq__Password: "guest"
       Consul__Host: "consul"
+      Redis__ConnectionString: "redis:6379"
     ports:
       - "8084:8080"
     depends_on:
@@ -153,6 +154,8 @@ services:
         condition: service_healthy
       consul:
         condition: service_started
+      redis:
+        condition: service_healthy
     networks:
       - greenfinance-network
 

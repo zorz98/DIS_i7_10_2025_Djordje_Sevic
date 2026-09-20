@@ -17,6 +17,21 @@ builder.Services.AddHealthChecks();
 builder.Services.AddDbContext<ReportDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("ReportDb")));
 
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    var connectionString = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+    options.ConfigurationOptions = new StackExchange.Redis.ConfigurationOptions
+    {
+        EndPoints = { connectionString },
+        AbortOnConnectFail = false,
+        ConnectTimeout = 500,
+        SyncTimeout = 500,
+        AsyncTimeout = 500,
+        ConnectRetry = 1,
+        ReconnectRetryPolicy = new StackExchange.Redis.LinearRetry(500),
+    };
+});
+
 builder.Services.AddScoped<ITransactionRecordRepository, TransactionRecordRepository>();
 builder.Services.AddSingleton<ReportAggregator>();
 builder.Services.AddConsulServiceDiscovery(builder.Configuration);
