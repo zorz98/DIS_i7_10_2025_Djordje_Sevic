@@ -3,4 +3,13 @@
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/GreenFinance.Contracts/GreenFinance.Contracts.csproj" />
   </Folder>
+  <Folder Name="/src/Services/" />
+  <Folder Name="/src/Services/ReferenceDataService/">
+    <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Api/ReferenceDataService.Api.csproj" />
+    <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Domain/ReferenceDataService.Domain.csproj" />
+    <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Infrastructure/ReferenceDataService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ReferenceDataService.UnitTests/ReferenceDataService.UnitTests.csproj" />
+  </Folder>
 </Solution>
