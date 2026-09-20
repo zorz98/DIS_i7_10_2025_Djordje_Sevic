@@ -47,6 +47,8 @@ services:
       context: ..
       dockerfile: src/Services/ReferenceDataService/ReferenceDataService.Api/Dockerfile
     container_name: greenfinance-reference-data-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "reference-data-service"}]'
     environment:
       ConnectionStrings__ReferenceDataDb: "Server=sqlserver,1433;Database=ReferenceDataDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       Consul__Host: "consul"
@@ -65,6 +67,8 @@ services:
       context: ..
       dockerfile: src/Services/TransactionService/TransactionService.Api/Dockerfile
     container_name: greenfinance-transaction-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "transaction-service"}]'
     environment:
       ConnectionStrings__TransactionDb: "Server=sqlserver,1433;Database=TransactionDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
@@ -88,6 +92,8 @@ services:
       context: ..
       dockerfile: src/Services/ESGService/ESGService.Api/Dockerfile
     container_name: greenfinance-esg-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "esg-service"}]'
     environment:
       ConnectionStrings__EsgDb: "Server=sqlserver,1433;Database=EsgDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
@@ -114,6 +120,8 @@ services:
       context: ..
       dockerfile: src/Services/ReportService/ReportService.Api/Dockerfile
     container_name: greenfinance-report-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "report-service"}]'
     environment:
       ConnectionStrings__ReportDb: "Server=sqlserver,1433;Database=ReportDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
@@ -137,6 +145,8 @@ services:
       context: ..
       dockerfile: src/Services/NotificationService/NotificationService.Api/Dockerfile
     container_name: greenfinance-notification-service
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "notification-service"}]'
     environment:
       ConnectionStrings__NotificationDb: "Server=sqlserver,1433;Database=NotificationDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True"
       RabbitMq__Host: "rabbitmq"
@@ -160,6 +170,8 @@ services:
       context: ..
       dockerfile: src/ApiGateway/Dockerfile
     container_name: greenfinance-gateway
+    labels:
+      com.datadoghq.ad.logs: '[{"source": "csharp", "service": "api-gateway"}]'
     environment:
       Consul__Host: "consul"
     ports:
@@ -211,6 +223,23 @@ services:
     depends_on:
       - prometheus
       - mailhog
+    networks:
+      - greenfinance-network
+
+  datadog-agent:
+    image: datadog/agent:latest
+    container_name: greenfinance-datadog-agent
+    environment:
+      DD_API_KEY: "${DD_API_KEY}"
+      DD_SITE: "${DD_SITE:-datadoghq.com}"
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_CONTAINER_EXCLUDE: "name:greenfinance-datadog-agent"
+      DD_APM_ENABLED: "false"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
     networks:
       - greenfinance-network
 

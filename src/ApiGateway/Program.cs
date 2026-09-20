@@ -5,6 +5,8 @@ using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddJsonConsole();
+
 var routes = new[]
 {
     new RouteConfig
