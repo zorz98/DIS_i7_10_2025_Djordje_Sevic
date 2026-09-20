@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using ESGService.Domain;
 using Microsoft.Extensions.Logging;
 using Polly.CircuitBreaker;
+using Polly.Timeout;
 
 namespace ESGService.Infrastructure;
 
@@ -24,7 +25,7 @@ public sealed class ReferenceDataClient(HttpClient httpClient, ILogger<Reference
             var dto = await response.Content.ReadFromJsonAsync<EmissionFactorDto>(cancellationToken);
             return new ReferenceDataLookupResult(true, dto?.Co2FactorPerEur);
         }
-        catch (Exception ex) when (ex is BrokenCircuitException or HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is BrokenCircuitException or HttpRequestException or TaskCanceledException or TimeoutRejectedException)
         {
             logger.LogWarning(ex, "ReferenceDataService is unavailable while resolving category {Category}", category);
             return new ReferenceDataLookupResult(false, null);

@@ -1,3 +1,4 @@
+using GreenFinance.Observability;
 using GreenFinance.ServiceDiscovery;
 using Microsoft.EntityFrameworkCore;
 using ReferenceDataService.Domain;
@@ -14,6 +15,7 @@ builder.Services.AddDbContext<ReferenceDataDbContext>(options =>
 
 builder.Services.AddScoped<IEmissionFactorRepository, EmissionFactorRepository>();
 builder.Services.AddConsulServiceDiscovery(builder.Configuration);
+builder.Services.AddGreenFinanceMetrics("ReferenceDataService");
 
 var app = builder.Build();
 
@@ -31,6 +33,7 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();
 

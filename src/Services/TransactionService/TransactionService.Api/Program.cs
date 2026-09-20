@@ -1,3 +1,5 @@
+using System.Diagnostics.Metrics;
+using GreenFinance.Observability;
 using GreenFinance.ServiceDiscovery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +17,10 @@ builder.Services.AddDbContext<TransactionDbContext>(options =>
 
 builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 builder.Services.AddConsulServiceDiscovery(builder.Configuration);
+
+builder.Services.AddSingleton(new Meter(TransactionMetrics.MeterName));
+builder.Services.AddSingleton<TransactionMetrics>();
+builder.Services.AddGreenFinanceMetrics("TransactionService", TransactionMetrics.MeterName);
 
 builder.Services.AddMassTransit(x =>
 {
@@ -50,6 +56,7 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();
 

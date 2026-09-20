@@ -4,7 +4,8 @@ public sealed class EsgCalculationService(
     IReferenceDataClient referenceDataClient,
     Co2Calculator co2Calculator,
     EsgScoreCalculator scoreCalculator,
-    IEsgResultRepository repository)
+    IEsgResultRepository repository,
+    EsgMetrics metrics)
 {
     public async Task<EsgResult> ProcessAsync(
         Guid transactionId, int companyId, string category, decimal amount, CancellationToken cancellationToken = default)
@@ -16,6 +17,16 @@ public sealed class EsgCalculationService(
             : EsgResult.TemporarilyUnavailable(transactionId, companyId, category);
 
         await repository.UpsertAsync(result, cancellationToken);
+
+        if (result.Status == EsgResultStatus.Calculated)
+        {
+            metrics.RecordCalculated();
+        }
+        else
+        {
+            metrics.RecordUnavailable();
+        }
+
         return result;
     }
 

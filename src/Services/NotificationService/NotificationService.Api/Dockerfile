@@ -6,6 +6,7 @@ COPY ["src/Services/NotificationService/NotificationService.Domain/NotificationS
 COPY ["src/Services/NotificationService/NotificationService.Infrastructure/NotificationService.Infrastructure.csproj", "src/Services/NotificationService/NotificationService.Infrastructure/"]
 COPY ["src/BuildingBlocks/GreenFinance.Contracts/GreenFinance.Contracts.csproj", "src/BuildingBlocks/GreenFinance.Contracts/"]
 COPY ["src/BuildingBlocks/GreenFinance.ServiceDiscovery/GreenFinance.ServiceDiscovery.csproj", "src/BuildingBlocks/GreenFinance.ServiceDiscovery/"]
+COPY ["src/BuildingBlocks/GreenFinance.Observability/GreenFinance.Observability.csproj", "src/BuildingBlocks/GreenFinance.Observability/"]
 RUN dotnet restore "src/Services/NotificationService/NotificationService.Api/NotificationService.Api.csproj"
 
 COPY . .

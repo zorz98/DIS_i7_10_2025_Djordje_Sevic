@@ -1,4 +1,5 @@
 using ApiGateway.ServiceDiscovery;
+using GreenFinance.Observability;
 using GreenFinance.ServiceDiscovery;
 using Yarp.ReverseProxy.Configuration;
 
@@ -55,8 +56,11 @@ builder.Services.AddReverseProxy();
 builder.Services.AddConsulClient(builder.Configuration);
 builder.Services.AddHostedService<ConsulProxyRefreshHostedService>();
 
+builder.Services.AddGreenFinanceMetrics("ApiGateway");
+
 var app = builder.Build();
 
 app.MapReverseProxy();
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();

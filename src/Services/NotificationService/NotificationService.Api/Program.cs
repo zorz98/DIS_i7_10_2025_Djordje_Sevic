@@ -1,3 +1,5 @@
+using System.Diagnostics.Metrics;
+using GreenFinance.Observability;
 using GreenFinance.ServiceDiscovery;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +19,10 @@ builder.Services.AddDbContext<NotificationDbContext>(options =>
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<NotificationDecisionService>();
 builder.Services.AddConsulServiceDiscovery(builder.Configuration);
+
+builder.Services.AddSingleton(new Meter(NotificationMetrics.MeterName));
+builder.Services.AddSingleton<NotificationMetrics>();
+builder.Services.AddGreenFinanceMetrics("NotificationService", NotificationMetrics.MeterName);
 
 builder.Services.AddMassTransit(x =>
 {
@@ -58,6 +64,7 @@ if (app.Environment.IsDevelopment())
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();
 

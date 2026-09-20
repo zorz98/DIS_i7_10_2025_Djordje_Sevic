@@ -20,6 +20,7 @@
     <ProjectReference Include="..\ReportService.Infrastructure\ReportService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\GreenFinance.Contracts\GreenFinance.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\GreenFinance.ServiceDiscovery\GreenFinance.ServiceDiscovery.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\GreenFinance.Observability\GreenFinance.Observability.csproj" />
   </ItemGroup>
 
 </Project>
