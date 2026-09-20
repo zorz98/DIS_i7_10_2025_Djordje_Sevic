@@ -38,7 +38,10 @@ observability stack (Prometheus, Grafana, MailHog, Datadog Agent). Nakon starta:
 
 - Gateway: `http://localhost:8080`
 - RabbitMQ management UI: `http://localhost:15672` (guest/guest)
-- Pojedinačni servisi (za debug, mimo gateway-a): `8081`–`8085`
+- Pojedinačni servisi (za debug, mimo gateway-a): ReferenceDataService `8081`,
+  ReportService `8084`, NotificationService `8085`. TransactionService i ESGService
+  **nemaju** fiksni host port (namerno — vidi "Skaliranje servisa" ispod) i dostupni
+  su samo preko gateway-a ili `docker compose exec`.
 - Consul UI (service discovery katalog/health): `http://localhost:8500`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000` (admin/admin) — dashboard "GreenFinance Overview"
@@ -75,6 +78,46 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml stop referenc
 # pozove ReferenceDataService i circuit se otvori (esg_referencedata_circuit_state=1)
 # posle ~1 min proveri http://localhost:8025 (MailHog) — treba da stigne "FIRING" email
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml start reference-data-service
+```
+
+### Skaliranje servisa (load balancing preko gateway-a)
+
+`TransactionService` (ulazna tačka, najviše pisanja) i `ESGService` (sinhroni
+hot-path servis) su podešeni da rade kao više instanci iza YARP gateway-a — svaka
+instanca se registruje u Consul sa sopstvenom, jedinstvenom adresom
+(kontejnerov hostname), a gateway ih otkriva preko istog dinamičkog
+Consul-catalog mehanizma iz DIS-25 i raspoređuje saobraćaj round-robin politikom.
+Mehanizam je generički i radi identično za bilo koji od 5 servisa — ova dva su
+izabrana kao konkretna demonstracija.
+
+```bash
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build \
+  --scale transaction-service=3 --scale esg-service=2
+```
+
+Skalirani servisi nisu dostupni na fiksnom host portu (samo preko gateway-a,
+`http://localhost:8080`) — direktan debug pristup pojedinačnoj instanci ide preko
+`docker compose exec transaction-service curl -s localhost:8080/health` ili
+`docker port <container>`.
+
+Provera load balancing-a:
+
+```bash
+# 1) Consul UI (http://localhost:8500) treba da pokaže 3 odvojena healthy unosa
+#    za transaction-service i 2 za esg-service, svaki sa različitom adresom.
+
+# 2) Ponovljeni zahtevi preko gateway-a treba da se raspodele na sve instance —
+#    proveriti preko docker compose logs transaction-service (ili logova
+#    pojedinačnih replika, npr. greenfinance-transaction-service-1/2/3).
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  curl -s -o /dev/null -X POST http://localhost:8080/transactions \
+    -H "Content-Type: application/json" \
+    -d "{\"companyId\":$i,\"category\":\"Fuel\",\"amount\":100,\"currency\":\"EUR\",\"date\":\"2026-09-20\"}"
+done
+
+# 3) Gašenje jedne instance usred saobraćaja — Consul je izbacuje iz healthy liste
+#    za ~10s (jedan refresh ciklus), gateway nastavlja da radi bez vidljivih grešaka.
+docker stop greenfinance-transaction-service-2
 ```
 
 Gašenje i čišćenje:

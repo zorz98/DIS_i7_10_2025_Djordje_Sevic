@@ -125,16 +125,32 @@ Svaki od 5 business servisa se registruje u Consul pri startu
 sa HTTP health check-om ka svom `/health` endpoint-u (interval 10s). Registracija je
 namerno **ne-fatalna**: ako Consul privremeno nije dostupan, servis i dalje starta
 normalno (samo loguje upozorenje i pokušava ponovo) — ovo drži integracione testove
-(koji ne pokreću Consul) jednostavnim (`Consul:Enabled=false`).
+(koji ne pokreću Consul) jednostavnim (`Consul:Enabled=false`). Adresa pod kojom se
+servis registruje je kontejnerov hostname (`Dns.GetHostName()`), jedinstven po
+instanci — ovo je ono što omogućava da više replika istog servisa (vidi
+"Skaliranje" ispod) registruje odvojene, razlikovane unose u Consul katalogu umesto
+da se prepisuju jedna preko druge.
 
 ApiGateway ne koristi statičku `appsettings.json` `ReverseProxy` konfiguraciju — umesto
 toga, custom `IProxyConfigProvider` (`ConsulProxyConfigProvider` +
 `ConsulProxyRefreshHostedService`) svakih 10s upita Consul-ov `/v1/health/service/{name}`
 za svaki od 5 servisa i dinamički gradi YARP cluster destinacije samo od instanci koje
 su trenutno "passing". Kad se servis ugasi, njegova ruta u gateway-u vraća 503 u roku
-od jednog refresh ciklusa; kad se vrati, saobraćaj se automatski nastavlja.
+od jednog refresh ciklusa; kad se vrati, saobraćaj se automatski nastavlja. Svaki
+klaster ima eksplicitno postavljenu `RoundRobin` load balancing politiku, tako da se
+saobraćaj ravnomerno raspoređuje kad klaster ima više od jedne zdrave destinacije.
 
 Consul UI: `http://localhost:8500`.
+
+### Skaliranje (horizontalno, load balancing)
+
+`TransactionService` i `ESGService` su podešeni da rade kao više instanci
+(`docker compose --scale`) — mehanizam je generički (radi za bilo koji od 5
+servisa), demonstriran konkretno na ova dva kao najzahtevnijim putanjama (ulazna
+tačka sistema i sinhroni hot-path servis). Skalirane instance nemaju fiksni
+host-port mapping niti `container_name` u `deploy/docker-compose.yml` (Compose to
+zahteva za `--scale`) — dostupne su isključivo preko gateway-a. Detalji i primeri
+komandi: [`deployment.md`](deployment.md).
 
 ## Monitoring i alarmiranje (Prometheus, Grafana)
 
