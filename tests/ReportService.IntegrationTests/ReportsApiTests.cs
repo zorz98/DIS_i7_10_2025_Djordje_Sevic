@@ -39,7 +39,12 @@ public class ReportsApiTests(ReportServiceApiFactory factory) : IClassFixture<Re
             var response = await client.GetAsync($"/reports/company/{companyId}?month={date.Month}&year={date.Year}");
             response.EnsureSuccessStatusCode();
             report = await response.Content.ReadFromJsonAsync<CompanyReportDto>();
-            if (report is { Transactions: > 0, EsgScore: not null })
+
+            // Transactions>0 and EsgScore!=null can both be true from a
+            // TransactionCreated/EsgCalculated ordering placeholder alone (Amount
+            // still 0 until the other event lands) — also wait for the real amount
+            // so we don't assert on a half-merged row.
+            if (report is { Transactions: > 0, EsgScore: not null } && report.TotalExpenses > 0m)
             {
                 break;
             }
