@@ -19,6 +19,11 @@
     <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Domain/ReferenceDataService.Domain.csproj" />
     <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Infrastructure/ReferenceDataService.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Services/ReportService/">
+    <Project Path="src/Services/ReportService/ReportService.Api/ReportService.Api.csproj" />
+    <Project Path="src/Services/ReportService/ReportService.Domain/ReportService.Domain.csproj" />
+    <Project Path="src/Services/ReportService/ReportService.Infrastructure/ReportService.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Services/TransactionService/">
     <Project Path="src/Services/TransactionService/TransactionService.Api/TransactionService.Api.csproj" />
     <Project Path="src/Services/TransactionService/TransactionService.Domain/TransactionService.Domain.csproj" />
@@ -28,6 +33,7 @@
     <Project Path="tests/ESGService.UnitTests/ESGService.UnitTests.csproj" />
     <Project Path="tests/NotificationService.UnitTests/NotificationService.UnitTests.csproj" />
     <Project Path="tests/ReferenceDataService.UnitTests/ReferenceDataService.UnitTests.csproj" />
+    <Project Path="tests/ReportService.UnitTests/ReportService.UnitTests.csproj" />
     <Project Path="tests/TransactionService.UnitTests/TransactionService.UnitTests.csproj" />
   </Folder>
 </Solution>
