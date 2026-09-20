@@ -9,6 +9,11 @@
     <Project Path="src/Services/ESGService/ESGService.Domain/ESGService.Domain.csproj" />
     <Project Path="src/Services/ESGService/ESGService.Infrastructure/ESGService.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Services/NotificationService/">
+    <Project Path="src/Services/NotificationService/NotificationService.Api/NotificationService.Api.csproj" />
+    <Project Path="src/Services/NotificationService/NotificationService.Domain/NotificationService.Domain.csproj" />
+    <Project Path="src/Services/NotificationService/NotificationService.Infrastructure/NotificationService.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/src/Services/ReferenceDataService/">
     <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Api/ReferenceDataService.Api.csproj" />
     <Project Path="src/Services/ReferenceDataService/ReferenceDataService.Domain/ReferenceDataService.Domain.csproj" />
@@ -21,6 +26,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ESGService.UnitTests/ESGService.UnitTests.csproj" />
+    <Project Path="tests/NotificationService.UnitTests/NotificationService.UnitTests.csproj" />
     <Project Path="tests/ReferenceDataService.UnitTests/ReferenceDataService.UnitTests.csproj" />
     <Project Path="tests/TransactionService.UnitTests/TransactionService.UnitTests.csproj" />
   </Folder>
