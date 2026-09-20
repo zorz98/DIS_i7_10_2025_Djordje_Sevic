@@ -2,6 +2,7 @@ using Consul;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.LoadBalancing;
 using YarpDestinationConfig = Yarp.ReverseProxy.Configuration.DestinationConfig;
 
 namespace ApiGateway.ServiceDiscovery;
@@ -52,7 +53,12 @@ public sealed class ConsulProxyRefreshHostedService(
                         x => $"destination{x.index + 1}",
                         x => new YarpDestinationConfig { Address = $"http://{x.entry.Service.Address}:{x.entry.Service.Port}" });
 
-                clusters.Add(new ClusterConfig { ClusterId = clusterId, Destinations = destinations });
+                clusters.Add(new ClusterConfig
+                {
+                    ClusterId = clusterId,
+                    LoadBalancingPolicy = LoadBalancingPolicies.RoundRobin,
+                    Destinations = destinations,
+                });
 
                 if (destinations.Count == 0)
                 {
@@ -62,7 +68,12 @@ public sealed class ConsulProxyRefreshHostedService(
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to resolve {ServiceName} from Consul; keeping cluster empty this cycle", serviceName);
-                clusters.Add(new ClusterConfig { ClusterId = clusterId, Destinations = new Dictionary<string, YarpDestinationConfig>() });
+                clusters.Add(new ClusterConfig
+                {
+                    ClusterId = clusterId,
+                    LoadBalancingPolicy = LoadBalancingPolicies.RoundRobin,
+                    Destinations = new Dictionary<string, YarpDestinationConfig>(),
+                });
             }
         }
 

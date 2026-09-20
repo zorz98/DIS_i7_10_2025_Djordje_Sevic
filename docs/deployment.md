@@ -33,12 +33,15 @@ cp deploy/.env.example deploy/.env
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml up --build
 ```
 
-Ovo podiže: SQL Server, RabbitMQ, Consul, svih 5 mikroservisa, API Gateway, i
+Ovo podiže: SQL Server, RabbitMQ, Consul, Redis, svih 5 mikroservisa, API Gateway, i
 observability stack (Prometheus, Grafana, MailHog, Datadog Agent). Nakon starta:
 
 - Gateway: `http://localhost:8080`
 - RabbitMQ management UI: `http://localhost:15672` (guest/guest)
-- Pojedinačni servisi (za debug, mimo gateway-a): `8081`–`8085`
+- Pojedinačni servisi (za debug, mimo gateway-a): ReferenceDataService `8081`,
+  ReportService `8084`, NotificationService `8085`. TransactionService i ESGService
+  **nemaju** fiksni host port (namerno — vidi "Skaliranje servisa" ispod) i dostupni
+  su samo preko gateway-a ili `docker compose exec`.
 - Consul UI (service discovery katalog/health): `http://localhost:8500`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000` (admin/admin) — dashboard "GreenFinance Overview"
@@ -75,6 +78,94 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml stop referenc
 # pozove ReferenceDataService i circuit se otvori (esg_referencedata_circuit_state=1)
 # posle ~1 min proveri http://localhost:8025 (MailHog) — treba da stigne "FIRING" email
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml start reference-data-service
+```
+
+Provera Redis keša (emisijski faktori, ReferenceDataService):
+
+```bash
+curl http://localhost:8081/categories/Fuel   # prvi poziv puni keš
+docker exec greenfinance-redis redis-cli KEYS '*'
+docker exec greenfinance-redis redis-cli HGETALL "emission-factor:Fuel"
+```
+
+### Service mesh (Consul Connect) — ESGService → ReferenceDataService
+
+Scoped na jedini sinhroni servis-servis poziv u sistemu — vidi
+[`architecture.md`](architecture.md#service-mesh-consul-connect--scoped-na-esgservice--referencedataservice)
+za obim i mehanizam. Provera da je saobraćaj stvarno mTLS (SPIFFE identitet
+izdat od Consul-ove Connect CA, ne plain HTTP passthrough preko sidecar-a):
+
+```bash
+docker run --rm --network container:greenfinance-reference-data-service curlimages/curl:latest \
+  -s http://localhost:19000/certs   # pokazuje SPIFFE URI cert_chain-a (svc/reference-data-service)
+
+# generiši malo saobraćaja pa proveri da handshake brojač raste
+curl -X POST http://localhost:8080/transactions -H "Content-Type: application/json" \
+  -d '{"companyId":1,"category":"Fuel","amount":100,"currency":"EUR","date":"2026-09-20"}'
+docker run --rm --network container:greenfinance-reference-data-service curlimages/curl:latest \
+  -s http://localhost:19000/stats | grep ssl.handshake
+```
+
+Provera da su intentions stvarno primenjene (default-deny + eksplicitni allow,
+`deploy/consul/intentions/*.hcl`):
+
+```bash
+# privremeno promeni Action u 01-esg-to-referencedata.hcl na "deny", pa:
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml run --rm consul-intentions-init
+
+# POST /transactions (kao gore) → GET /esg/transaction/{id} sada vraća
+# "temporarily_unavailable" (Polly circuit breaker se otvara —
+# esg_referencedata_circuit_state metrika ide na 1)
+
+# vrati Action na "allow", ponovo pokreni consul-intentions-init, potvrdi oporavak
+```
+
+**Napomena**: `esg-service`/`esg-service-sidecar` dele network namespace preko
+`network_mode: "service:esg-service"` — restartovanje `esg-service` kontejnera
+samostalno (npr. `docker restart`) može privremeno prekinuti sidecar-ovu DNS
+rezoluciju ka `consul`; ako se to desi, restartuj i `esg-service-sidecar`. Ovo je
+poznata Docker specifičnost deljenih network namespace-ova, ne bag u mesh
+konfiguraciji — normalan `docker compose up`/`restart` na oba servisa zajedno
+(ili ceo stack) ovo ne pogađa.
+
+### Skaliranje servisa (load balancing preko gateway-a)
+
+`TransactionService` (ulazna tačka, najviše pisanja) i `ESGService` (sinhroni
+hot-path servis) su podešeni da rade kao više instanci iza YARP gateway-a — svaka
+instanca se registruje u Consul sa sopstvenom, jedinstvenom adresom
+(kontejnerov hostname), a gateway ih otkriva preko istog dinamičkog
+Consul-catalog mehanizma iz DIS-25 i raspoređuje saobraćaj round-robin politikom.
+Mehanizam je generički i radi identično za bilo koji od 5 servisa — ova dva su
+izabrana kao konkretna demonstracija.
+
+```bash
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build \
+  --scale transaction-service=3 --scale esg-service=2
+```
+
+Skalirani servisi nisu dostupni na fiksnom host portu (samo preko gateway-a,
+`http://localhost:8080`) — direktan debug pristup pojedinačnoj instanci ide preko
+`docker compose exec transaction-service curl -s localhost:8080/health` ili
+`docker port <container>`.
+
+Provera load balancing-a:
+
+```bash
+# 1) Consul UI (http://localhost:8500) treba da pokaže 3 odvojena healthy unosa
+#    za transaction-service i 2 za esg-service, svaki sa različitom adresom.
+
+# 2) Ponovljeni zahtevi preko gateway-a treba da se raspodele na sve instance —
+#    proveriti preko docker compose logs transaction-service (ili logova
+#    pojedinačnih replika, npr. greenfinance-transaction-service-1/2/3).
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  curl -s -o /dev/null -X POST http://localhost:8080/transactions \
+    -H "Content-Type: application/json" \
+    -d "{\"companyId\":$i,\"category\":\"Fuel\",\"amount\":100,\"currency\":\"EUR\",\"date\":\"2026-09-20\"}"
+done
+
+# 3) Gašenje jedne instance usred saobraćaja — Consul je izbacuje iz healthy liste
+#    za ~10s (jedan refresh ciklus), gateway nastavlja da radi bez vidljivih grešaka.
+docker stop greenfinance-transaction-service-2
 ```
 
 Gašenje i čišćenje:

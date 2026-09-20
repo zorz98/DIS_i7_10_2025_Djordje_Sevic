@@ -5,7 +5,7 @@ namespace ReportService.Infrastructure;
 
 public sealed class TransactionRecordRepository(ReportDbContext dbContext) : ITransactionRecordRepository
 {
-    public Task AddTransactionAsync(
+    public Task<DateOnly> AddTransactionAsync(
         Guid transactionId, int companyId, string category, decimal amount, DateOnly date,
         CancellationToken cancellationToken = default) =>
         UpsertAsync(
@@ -29,7 +29,7 @@ public sealed class TransactionRecordRepository(ReportDbContext dbContext) : ITr
             },
             cancellationToken);
 
-    public Task ApplyEsgResultAsync(
+    public Task<DateOnly> ApplyEsgResultAsync(
         Guid transactionId, int companyId, string category, decimal co2Kg, int overallScore,
         CancellationToken cancellationToken = default) =>
         UpsertAsync(
@@ -58,7 +58,7 @@ public sealed class TransactionRecordRepository(ReportDbContext dbContext) : ITr
     /// concurrent insert can violate the primary key; when that happens we fall back to
     /// updating the row the other consumer just committed.
     /// </summary>
-    private async Task UpsertAsync(
+    private async Task<DateOnly> UpsertAsync(
         Guid transactionId,
         Func<TransactionRecord> createIfMissing,
         Action<TransactionRecord> applyTo,
@@ -69,14 +69,16 @@ public sealed class TransactionRecordRepository(ReportDbContext dbContext) : ITr
         {
             applyTo(existing);
             await dbContext.SaveChangesAsync(cancellationToken);
-            return;
+            return existing.Date;
         }
 
-        dbContext.TransactionRecords.Add(createIfMissing());
+        var created = createIfMissing();
+        dbContext.TransactionRecords.Add(created);
 
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
+            return created.Date;
         }
         catch (DbUpdateException)
         {
@@ -84,6 +86,7 @@ public sealed class TransactionRecordRepository(ReportDbContext dbContext) : ITr
             var record = await dbContext.TransactionRecords.SingleAsync(r => r.TransactionId == transactionId, cancellationToken);
             applyTo(record);
             await dbContext.SaveChangesAsync(cancellationToken);
+            return record.Date;
         }
     }
 

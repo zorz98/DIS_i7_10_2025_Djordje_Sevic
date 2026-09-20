@@ -32,4 +32,16 @@ public class CategoriesApiTests(ReferenceDataServiceApiFactory factory) : IClass
 
         response.StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task GetByCategory_Should_Return_Consistent_Result_Across_Repeated_Calls_With_Redis_Cache()
+    {
+        var client = factory.CreateClient();
+
+        var first = await client.GetFromJsonAsync<EmissionFactorDto>("/categories/Fuel");
+        var second = await client.GetFromJsonAsync<EmissionFactorDto>("/categories/Fuel");
+
+        first.Should().BeEquivalentTo(new EmissionFactorDto("Fuel", 2.31m));
+        second.Should().BeEquivalentTo(first);
+    }
 }

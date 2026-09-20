@@ -10,6 +10,8 @@ ESG procena finansijskih transakcija — mikroservisni sistem u .NET-u.
 - **YARP** — API Gateway / reverse proxy, sa dinamičkim destinacijama iz Consul-a
 - **Polly** — retry + circuit breaker + timeout (ESGService → ReferenceDataService)
 - **Consul** — service discovery (registracija + health check po servisu)
+- **Redis (StackExchange.Redis)** — distribuirani keš (emisijski faktori u
+  ReferenceDataService, kratak TTL keš izveštaja u ReportService)
 - **OpenTelemetry + Prometheus + Grafana** — metrike i alarmiranje (email preko MailHog)
 - **Datadog Agent** — centralizovano logovanje (JSON logovi po kontejneru)
 - **Docker + Docker Compose** — kontejnerizacija i lokalna orkestracija

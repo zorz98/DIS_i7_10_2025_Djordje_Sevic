@@ -2,11 +2,13 @@ namespace ReportService.Domain;
 
 public interface ITransactionRecordRepository
 {
-    Task AddTransactionAsync(
+    /// <summary>Returns the affected record's period (year/month), used by callers to invalidate a per-period cache.</summary>
+    Task<DateOnly> AddTransactionAsync(
         Guid transactionId, int companyId, string category, decimal amount, DateOnly date,
         CancellationToken cancellationToken = default);
 
-    Task ApplyEsgResultAsync(
+    /// <summary>Returns the affected record's period (year/month), used by callers to invalidate a per-period cache.</summary>
+    Task<DateOnly> ApplyEsgResultAsync(
         Guid transactionId, int companyId, string category, decimal co2Kg, int overallScore,
         CancellationToken cancellationToken = default);
 
