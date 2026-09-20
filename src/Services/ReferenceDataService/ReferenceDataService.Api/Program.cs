@@ -46,7 +46,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ReferenceDataDbContext>();
-    dbContext.Database.Migrate();
+    MigrateDatabaseWithRetry(dbContext);
 }
 
 if (app.Environment.IsDevelopment())
@@ -60,5 +60,28 @@ app.MapHealthChecks("/health");
 app.MapPrometheusScrapingEndpoint();
 
 app.Run();
+
+static void MigrateDatabaseWithRetry(DbContext dbContext)
+{
+    const int maxAttempts = 5;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            dbContext.Database.Migrate();
+            return;
+        }
+        catch (Exception) when (attempt < maxAttempts)
+        {
+            // When the target database doesn't exist yet, Database.Migrate() runs CREATE DATABASE /
+            // ALTER DATABASE before EF Core's __EFMigrationsLock app-lock is available to serialize
+            // it. Under concurrent replicas against a fresh volume, one replica's ALTER DATABASE can
+            // block on another's in-progress CREATE DATABASE and hit the default 60s command timeout.
+            // Back off and retry instead of letting that crash the container.
+            Thread.Sleep(TimeSpan.FromSeconds(Math.Pow(2, attempt)));
+        }
+    }
+}
 
 public partial class Program;
