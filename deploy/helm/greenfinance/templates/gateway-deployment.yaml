@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "greenfinance.labels" . | nindent 4 }}
+    app: gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: gateway
+          image: "{{ include "greenfinance.image" (dict "root" $ "name" "api-gateway") }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Kubernetes"
+          volumeMounts:
+            - name: gateway-config
+              mountPath: /app/appsettings.Kubernetes.json
+              subPath: appsettings.Kubernetes.json
+          # The gateway (unlike the 5 business services) does not map a /health
+          # endpoint — only /metrics (Prometheus scraping). Probe that instead;
+          # it's cheap and only responds once Kestrel/the app pipeline is up.
+          startupProbe:
+            httpGet:
+              path: /metrics
+              port: 8080
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 8080
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 8080
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+      volumes:
+        - name: gateway-config
+          configMap:
+            name: gateway-config

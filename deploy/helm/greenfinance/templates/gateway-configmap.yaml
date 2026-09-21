@@ -1,0 +1,33 @@
+{{/*
+Mirrors src/ApiGateway/appsettings.Kubernetes.json — kept identical on purpose
+by generating the routes/clusters from the same .Values.services map used for
+the business-service Deployments/Services above, so the two can never drift.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "greenfinance.labels" . | nindent 4 }}
+data:
+  appsettings.Kubernetes.json: |
+    {
+      "Consul": { "Enabled": false },
+      "ReverseProxy": {
+        "Routes": {
+          "transactions-route": { "ClusterId": "transaction-service-cluster", "Match": { "Path": "/transactions/{**catch-all}" } },
+          "esg-route": { "ClusterId": "esg-service-cluster", "Match": { "Path": "/esg/{**catch-all}" } },
+          "categories-route": { "ClusterId": "reference-data-service-cluster", "Match": { "Path": "/categories/{**catch-all}" } },
+          "emission-factors-route": { "ClusterId": "reference-data-service-cluster", "Match": { "Path": "/emission-factors/{**catch-all}" } },
+          "reports-route": { "ClusterId": "report-service-cluster", "Match": { "Path": "/reports/{**catch-all}" } },
+          "notifications-route": { "ClusterId": "notification-service-cluster", "Match": { "Path": "/notifications/{**catch-all}" } }
+        },
+        "Clusters": {
+          {{- $names := keys .Values.services | sortAlpha }}
+          {{- range $i, $name := $names }}
+          "{{ $name }}-cluster": { "Destinations": { "d1": { "Address": "http://{{ $name }}:8080" } } }{{ if ne (add $i 1) (len $names) }},{{ end }}
+          {{- end }}
+        }
+      }
+    }
