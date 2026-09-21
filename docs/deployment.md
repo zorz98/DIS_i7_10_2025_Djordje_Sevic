@@ -263,11 +263,37 @@ helm install greenfinance deploy/helm/greenfinance -n greenfinance --create-name
 
 Ovo po difoltu koristi već objavljene GHCR image-e (`develop-latest`, isti koje
 `cd.yml` push-uje na svaki push ka `develop`) — najmanje trenja za brzo
-probanje. Za testiranje svojih lokalnih (necommit-ovanih) izmena, izgradi
-image-e lokalno i učitaj ih u klaster (`kind load docker-image
-<image>:<tag> --name <cluster>` za kind; minikube ima sličan
-`minikube image load`), pa override-uj `image.tag`/`image.repository` preko
-`--set`.
+probanje. **Bitno**: `develop-latest` sadrži samo kod koji je stvarno
+merge-ovan u `develop` — ako testiraš chart sa neke `feature/DIS-XX-...`
+grane koja *još nije* tamo (npr. ceo Kubernetes rad je namerno ostao na
+sopstvenoj grani dok se ne merge-uje ručno), gateway/servisi će pokrenuti
+**stariji** kod bez tvojih K8s-specifičnih izmena (npr. static YARP
+ReverseProxy grananje) i ponašaće se pogrešno (npr. gateway pokušava Consul
+koji u K8s putanji ne postoji → 503) — ne zato što je chart pogrešan, nego
+zato što image ne odgovara trenutnom source-u. Za testiranje svog trenutnog
+(necommit-ovanog ili ne-merge-ovanog) koda, izgradi image-e lokalno i uputi
+Helm da ih koristi:
+
+```bash
+REPO=ghcr.io/zorz98/dis_i7_10_2025_djordje_sevic
+docker build -t $REPO/reference-data-service:local -f src/Services/ReferenceDataService/ReferenceDataService.Api/Dockerfile .
+docker build -t $REPO/transaction-service:local -f src/Services/TransactionService/TransactionService.Api/Dockerfile .
+docker build -t $REPO/esg-service:local -f src/Services/ESGService/ESGService.Api/Dockerfile .
+docker build -t $REPO/report-service:local -f src/Services/ReportService/ReportService.Api/Dockerfile .
+docker build -t $REPO/notification-service:local -f src/Services/NotificationService/NotificationService.Api/Dockerfile .
+docker build -t $REPO/api-gateway:local -f src/ApiGateway/Dockerfile .
+
+helm upgrade --install greenfinance deploy/helm/greenfinance -n greenfinance --create-namespace \
+  --set image.tag=local --set image.pullPolicy=Never
+```
+
+(Svaki `docker build` gore koristi repo koren kao build context — pokreni ih iz
+korenskog direktorijuma projekta, isto kao `docker compose build`.)
+
+(Docker Desktop-ov Kubernetes deli isti Docker daemon kao `docker build`, pa
+nije potreban poseban "load" korak kao za kind/minikube — za te alate koristi
+`kind load docker-image <image>:<tag> --name <cluster>` odn. `minikube image
+load` posle build-a.)
 
 Provera statusa:
 
