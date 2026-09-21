@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "greenfinance.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: {{ .Values.grafana.adminUser | quote }}
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: {{ .Values.grafana.adminPassword | quote }}
+            - name: GF_SMTP_ENABLED
+              value: "true"
+            - name: GF_SMTP_HOST
+              value: "mailhog:1025"
+            - name: GF_SMTP_FROM_ADDRESS
+              value: "alerts@greenfinance.local"
+            - name: GF_SMTP_SKIP_VERIFY
+              value: "true"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/grafana/provisioning/datasources/prometheus.yml
+              subPath: datasources-prometheus.yml
+            - name: config
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yml
+              subPath: dashboards-provider.yml
+            - name: config
+              mountPath: /etc/grafana/provisioning/alerting/circuit-breaker-alert.yml
+              subPath: circuit-breaker-alert.yml
+            - name: config
+              mountPath: /var/lib/grafana/dashboards/greenfinance-overview.json
+              subPath: greenfinance-overview.json
+      volumes:
+        - name: config
+          configMap:
+            name: grafana-config

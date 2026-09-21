@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "greenfinance.labels" . | nindent 4 }}
+data:
+  prometheus.yml: |-
+{{ .Files.Get "files/prometheus.yml" | indent 4 }}

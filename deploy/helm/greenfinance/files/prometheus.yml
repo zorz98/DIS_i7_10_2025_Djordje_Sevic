@@ -1,5 +1,6 @@
-# Copied into deploy/helm/greenfinance/files/prometheus.yml for the Kubernetes
-# Helm chart — keep both in sync if you change scrape targets here.
+# Copy of deploy/prometheus.yml, mounted into the Helm chart's Prometheus pod
+# (Helm can't reference files outside the chart directory). Targets already
+# match Kubernetes Service DNS names — keep both copies in sync manually.
 global:
   scrape_interval: 15s
 

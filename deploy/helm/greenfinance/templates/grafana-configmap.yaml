@@ -1,0 +1,23 @@
+{{/*
+Mirrors deploy/grafana/** (see deploy/helm/greenfinance/files/grafana/**, a
+manual copy kept in sync by hand — Helm can't reference files outside the
+chart directory). Keys are flattened (no "/") since ConfigMap data keys can't
+contain slashes; grafana-deployment.yaml mounts each key back to its correct
+nested path via a dedicated volumeMount + subPath.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "greenfinance.labels" . | nindent 4 }}
+data:
+  datasources-prometheus.yml: |-
+{{ .Files.Get "files/grafana/provisioning/datasources/prometheus.yml" | indent 4 }}
+  dashboards-provider.yml: |-
+{{ .Files.Get "files/grafana/provisioning/dashboards/dashboards.yml" | indent 4 }}
+  circuit-breaker-alert.yml: |-
+{{ .Files.Get "files/grafana/provisioning/alerting/circuit-breaker-alert.yml" | indent 4 }}
+  greenfinance-overview.json: |-
+{{ .Files.Get "files/grafana/dashboards/greenfinance-overview.json" | indent 4 }}

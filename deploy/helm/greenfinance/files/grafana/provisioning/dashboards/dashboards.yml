@@ -1,6 +1,5 @@
-# This whole deploy/grafana/ tree is mirrored under
-# deploy/helm/greenfinance/files/grafana/ for the Kubernetes Helm chart — keep
-# both copies in sync if you change provisioning/dashboards here.
+# Copy of deploy/grafana/provisioning/dashboards/dashboards.yml for the
+# Kubernetes Helm chart — keep both in sync.
 apiVersion: 1
 
 providers:
