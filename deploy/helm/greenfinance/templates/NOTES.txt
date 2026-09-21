@@ -1,0 +1,18 @@
+GreenFinance is deployed to the "{{ .Values.namespace }}" namespace.
+
+This is a simplified Kubernetes topology for local dev/demo (minikube or kind):
+service discovery uses native Kubernetes Service DNS, not Consul — the Consul
+service discovery + Connect mesh (mTLS + intentions) from the docker-compose
+deployment is intentionally not part of this chart. See docs/architecture.md
+and docs/deployment.md for the full picture.
+
+Check pod status:
+  kubectl get pods -n {{ .Values.namespace }}
+
+Access the gateway (mirrors http://localhost:8080 from docker-compose):
+  kubectl port-forward -n {{ .Values.namespace }} svc/gateway 8080:8080
+
+Then, in another terminal:
+  curl -X POST http://localhost:8080/transactions \
+    -H "Content-Type: application/json" \
+    -d '{"companyId":1,"category":"Fuel","amount":100,"currency":"EUR","date":"2026-09-21"}'

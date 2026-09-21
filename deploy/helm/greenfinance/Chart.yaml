@@ -1,0 +1,6 @@
+apiVersion: v2
+name: greenfinance
+description: GreenFinance ESG microservices system — local Kubernetes (minikube/kind) demo deployment. Simplified topology (native K8s Service/DNS discovery, no Consul mesh, no Datadog) — see docs/deployment.md and docs/architecture.md for the full docker-compose deployment with the complete bonus stack.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

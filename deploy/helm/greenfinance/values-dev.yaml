@@ -1,0 +1,6 @@
+# DEV phase overrides. Since this chart targets a single local cluster (not a
+# real separate dev cluster), the only meaningful difference from values.yaml
+# is which published image tag to run — this points at whatever the CD
+# pipeline last pushed for the `develop` branch.
+image:
+  tag: develop-latest

@@ -1,0 +1,7 @@
+# PROD phase overrides. Same local-cluster caveat as values-dev.yaml — this
+# just points your single local cluster at the images published for the `main`
+# branch, so you can eyeball what that phase would run. This is NOT a
+# production-hardened configuration (no real secrets management, single
+# replicas, ephemeral local storage) — see docs/deployment.md.
+image:
+  tag: main-latest

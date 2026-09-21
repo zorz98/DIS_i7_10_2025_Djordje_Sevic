@@ -1,0 +1,85 @@
+# Default values for the GreenFinance Helm chart — local Kubernetes (minikube/kind) demo.
+# See docs/deployment.md "Kubernetes (Helm)" for prerequisites and usage.
+
+namespace: greenfinance
+
+image:
+  registry: ghcr.io
+  repository: zorz98/dis_i7_10_2025_djordje_sevic
+  tag: develop-latest
+  pullPolicy: IfNotPresent
+
+sqlserver:
+  saPassword: "YourStrong!Passw0rd"
+  storage: 1Gi
+  # Empty string lets the cluster's default StorageClass decide (works out of
+  # the box with minikube's storage-provisioner addon and kind's default
+  # rancher.io/local-path class). Set explicitly if your cluster has no default.
+  storageClassName: ""
+
+rabbitmq:
+  username: guest
+  password: guest
+
+grafana:
+  adminUser: admin
+  adminPassword: admin
+
+# Shared probe timing for all business services + gateway. A generous
+# startupProbe covers the app's inline `Database.Migrate()` on first boot
+# (nothing answers on /health until migration finishes); readiness/liveness
+# take over afterwards. All three point at the same path since the app has no
+# differentiated liveness-vs-readiness checks today.
+probes:
+  path: /health
+  startup:
+    periodSeconds: 5
+    failureThreshold: 24 # ~2 minutes of grace for first-boot migration
+  readiness:
+    periodSeconds: 10
+    failureThreshold: 3
+  liveness:
+    periodSeconds: 10
+    failureThreshold: 3
+
+# The 5 business services. Each becomes one Deployment + one Service (name ==
+# map key == the K8s Service DNS name other services/the gateway call).
+# replicas defaults to 1 everywhere: running more than one replica against a
+# freshly-created database can race on EF Core's initial CREATE DATABASE step
+# (see DIS-48's Database.Migrate() retry fix, which makes this safe — raise
+# replicas only once that fix is confirmed present).
+services:
+  reference-data-service:
+    db: ReferenceDataDb
+    replicas: 1
+    rabbitmq: false
+    redis: true
+    extraEnv: {}
+  transaction-service:
+    db: TransactionDb
+    replicas: 1
+    rabbitmq: true
+    redis: false
+    extraEnv: {}
+  esg-service:
+    db: EsgDb
+    replicas: 1
+    rabbitmq: true
+    redis: false
+    extraEnv:
+      ReferenceDataService__BaseUrl: "http://reference-data-service:8080/"
+  report-service:
+    db: ReportDb
+    replicas: 1
+    rabbitmq: true
+    redis: true
+    extraEnv: {}
+  notification-service:
+    db: NotificationDb
+    replicas: 1
+    rabbitmq: true
+    redis: false
+    extraEnv: {}
+
+gateway:
+  replicas: 1

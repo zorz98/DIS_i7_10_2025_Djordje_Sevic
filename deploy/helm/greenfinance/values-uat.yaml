@@ -1,0 +1,5 @@
+# UAT phase overrides. Same local-cluster caveat as values-dev.yaml — this
+# just points your single local cluster at the images published for the `uat`
+# branch, so you can eyeball what that phase would run.
+image:
+  tag: uat-latest
