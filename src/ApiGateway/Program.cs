@@ -47,16 +47,32 @@ var routes = new[]
     },
 };
 
-// Cluster destinations start empty and are populated by ConsulProxyRefreshHostedService
-// as soon as it runs its first Consul lookup (within a second or so of startup).
-var configProvider = new ConsulProxyConfigProvider(routes, []);
+// Consul-based dynamic discovery is this app's default (docker-compose) mode.
+// Kubernetes deployments set Consul:Enabled=false and instead supply a static
+// ReverseProxy config (see appsettings.Kubernetes.json) pointing each cluster
+// at its Kubernetes Service DNS name — a K8s Service already load-balances
+// across that Deployment's pod replicas, so no dynamic multi-destination
+// polling is needed for that path.
+var consulEnabled = builder.Configuration.GetValue("Consul:Enabled", true);
 
-builder.Services.AddSingleton(configProvider);
-builder.Services.AddSingleton<IProxyConfigProvider>(configProvider);
-builder.Services.AddReverseProxy();
+if (consulEnabled)
+{
+    // Cluster destinations start empty and are populated by ConsulProxyRefreshHostedService
+    // as soon as it runs its first Consul lookup (within a second or so of startup).
+    var configProvider = new ConsulProxyConfigProvider(routes, []);
 
-builder.Services.AddConsulClient(builder.Configuration);
-builder.Services.AddHostedService<ConsulProxyRefreshHostedService>();
+    builder.Services.AddSingleton(configProvider);
+    builder.Services.AddSingleton<IProxyConfigProvider>(configProvider);
+    builder.Services.AddReverseProxy();
+
+    builder.Services.AddConsulClient(builder.Configuration);
+    builder.Services.AddHostedService<ConsulProxyRefreshHostedService>();
+}
+else
+{
+    builder.Services.AddReverseProxy()
+        .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+}
 
 builder.Services.AddGreenFinanceMetrics("ApiGateway");
 
