@@ -14,7 +14,11 @@ ESG procena finansijskih transakcija — mikroservisni sistem u .NET-u.
   ReferenceDataService, kratak TTL keš izveštaja u ReportService)
 - **OpenTelemetry + Prometheus + Grafana** — metrike i alarmiranje (email preko MailHog)
 - **Datadog Agent** — centralizovano logovanje (JSON logovi po kontejneru)
-- **Docker + Docker Compose** — kontejnerizacija i lokalna orkestracija
+- **Docker + Docker Compose** — kontejnerizacija i lokalna orkestracija (primarna
+  putanja, pun bonus stack uklj. Consul mesh i Datadog)
+- **Kubernetes + Helm** — lokalni klaster (minikube/kind) za demo, jedan
+  parametrizovan chart u `deploy/helm/greenfinance/` (pojednostavljena
+  topologija, bez Consul-a — vidi `docs/architecture.md`)
 - **xUnit + FluentAssertions + Moq** — unit testovi; **Testcontainers** — integration testovi
 - **GitHub Actions** (CI/CD) + **GitHub Container Registry** (ghcr.io)
 

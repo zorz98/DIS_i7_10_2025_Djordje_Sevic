@@ -276,3 +276,37 @@ ASP.NET runtime image za pokretanje). `deploy/docker-compose.yml` orkestrira:
 - Datadog Agent (centralizovano logovanje)
 
 Detalji pokretanja i CI/CD pipeline-a nalaze se u [`deployment.md`](deployment.md).
+
+## Kubernetes deployment (pojednostavljena putanja)
+
+Pored `docker-compose.yml`-a (primarni put, pun bonus stack), postoji i
+paralelan Helm chart (`deploy/helm/greenfinance/`) za lokalni Kubernetes
+klaster (minikube/kind) — namenjen razvoju/demo-u, ne CI/CD automatizaciji.
+Ovo je **namerno jednostavnija** topologija, ne 1:1 prevod docker-compose
+stack-a:
+
+- **Service discovery**: nativni Kubernetes Service/DNS umesto Consul-a.
+  Servisi se pronalaze direktno preko K8s Service imena (npr.
+  `http://reference-data-service:8080/`) — isto kako je sistem radio pre
+  Consul mesh rada (DIS-24–DIS-47). ApiGateway u ovom režimu (`Consul:
+  Enabled=false`) učitava **statičku** YARP `ReverseProxy` konfiguraciju
+  (`src/ApiGateway/appsettings.Kubernetes.json`) sa po jednom destinacijom
+  po klasteru — K8s Service već radi load balancing preko svih replika te
+  destinacije (kube-proxy), pa YARP-u nije potrebna sopstvena dinamička
+  multi-destinacija LB logika za ovu putanju.
+- **Consul service discovery/mesh i Datadog logovanje nisu deo K8s putanje** —
+  ostaju isključivo u docker-compose-u (Datadog-ov Docker-socket pattern se ne
+  mapira čisto na Kubernetes; pravo rešenje tamo bi bio zvaničan Datadog Helm
+  chart + Cluster Agent, drugačiji mehanizam).
+- **Redis keširanje, Prometheus/Grafana monitoring i MailHog alarm** ostaju
+  identični po funkciji — isti Docker image-i, ista Grafana provisioning
+  konfiguracija (ručno mirror-ovana u `deploy/helm/greenfinance/files/`), samo
+  na K8s Service DNS imenima umesto Compose DNS imena (koja su već ista).
+- **SQL Server** je `StatefulSet` sa PVC-om (čuva stvarne aplikacione podatke
+  kroz restart pod-a); ostali infra servisi su plain `Deployment`-i.
+- Svi business servisi imaju `replicas: 1` po difoltu — izbegava poznatu EF
+  Core migration rasu na praznoj bazi (vidi DIS-48 fix); skaliranje je
+  dokumentovano kao opcioni sledeći korak.
+
+Detaljno uputstvo za instalaciju/pristup nalazi se u
+[`deployment.md`](deployment.md#6-kubernetes-helm--lokalni-klaster).

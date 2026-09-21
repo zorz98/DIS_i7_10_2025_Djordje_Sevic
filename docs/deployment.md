@@ -232,3 +232,123 @@ zvanične [Claude Code GitHub Action](https://github.com/anthropics/claude-code-
 Zahteva GitHub Actions secret `ANTHROPIC_API_KEY` (Settings → Secrets and variables
 → Actions) sa validnim Anthropic API ključem. Svaki pokrenuti review je pravi API
 poziv i ima trošak — po potrebi suziti `types:`/`branches:` filter u workflow-u.
+
+## 6. Kubernetes (Helm) — lokalni klaster
+
+Alternativna, **pojednostavljena** putanja za pokretanje sistema — namenjena
+lokalnom razvoju/demo-u (minikube ili kind), ne pravom cloud klasteru niti CI/CD
+automatizaciji. `docker-compose.yml` ostaje primarni put za pun bonus stack
+(Consul service discovery + Connect mesh, skaliranje preko `--scale`, Datadog);
+ovaj Helm chart namerno **ne koristi Consul** — servisi se pronalaze preko
+nativnih Kubernetes Service DNS imena (npr. `http://reference-data-service:8080/`
+direktno), a Datadog centralizovano logovanje je van obima (Docker-socket
+pattern ne mapira se čisto na Kubernetes — pravo rešenje tamo bi bio zvaničan
+Datadog Helm chart + Cluster Agent, drugačiji mehanizam). Vidi
+[`architecture.md`](architecture.md#kubernetes-deployment-pojednostavljena-putanja)
+za punu sliku razlika.
+
+### Preduslovi
+
+- Lokalni Kubernetes klaster: [minikube](https://minikube.sigs.k8s.io/) ili
+  [kind](https://kind.sigs.k8s.io/) (sa podrazumevanim StorageClass-om
+  omogućenim — minikube: `minikube addons enable storage-provisioner`; kind ga
+  ima uključenog po difoltu preko `rancher.io/local-path`).
+- [Helm 3+](https://helm.sh/) i `kubectl`.
+
+### Instalacija
+
+```bash
+helm install greenfinance deploy/helm/greenfinance -n greenfinance --create-namespace
+```
+
+Ovo po difoltu koristi već objavljene GHCR image-e (`develop-latest`, isti koje
+`cd.yml` push-uje na svaki push ka `develop`) — najmanje trenja za brzo
+probanje. Za testiranje svojih lokalnih (necommit-ovanih) izmena, izgradi
+image-e lokalno i učitaj ih u klaster (`kind load docker-image
+<image>:<tag> --name <cluster>` za kind; minikube ima sličan
+`minikube image load`), pa override-uj `image.tag`/`image.repository` preko
+`--set`.
+
+Provera statusa:
+
+```bash
+kubectl get pods -n greenfinance
+```
+
+Prva instalacija na potpuno praznu bazu može potrajati do ~2 minuta pre nego
+što business servisi postanu `Ready` (`Database.Migrate()` se izvršava inline
+pri startu — `startupProbe` u chart-u ovo pokriva; ako tvoj lokalni klaster je
+resursno slab pa prvi boot premaši ~2min, podigni
+`probes.startup.failureThreshold` preko `--set`).
+
+### Pristup gateway-u
+
+```bash
+kubectl port-forward -n greenfinance svc/gateway 8080:8080
+```
+
+Ovo tačno reprodukuje `http://localhost:8080` iz docker-compose sveta, bez
+ikakvog dodatnog podešavanja klastera (radi identično na minikube i kind).
+Alternative (pomenute, ne default): `NodePort` servis (`minikube service
+gateway`, radi samo ako je kind pokrenut sa `extraPortMappings`), ili Ingress
+kontroler (zahteva dodatni addon — nepotrebna komplikacija za jednu rutu).
+
+Primer end-to-end provere (identičan primer kao za docker-compose, §2):
+
+```bash
+curl -X POST http://localhost:8080/transactions \
+  -H "Content-Type: application/json" \
+  -d '{"companyId":12,"category":"Fuel","amount":5000,"currency":"EUR","date":"2026-09-20"}'
+
+curl http://localhost:8080/esg/transaction/<vraceni-id>
+curl "http://localhost:8080/reports/company/12?month=9&year=2026"
+```
+
+### Faze (dev/uat/prod)
+
+`values-dev.yaml`/`values-uat.yaml`/`values-prod.yaml` postoje radi
+konzistentnosti sa dev/uat/prod fazu-po-granu pričom iz §4, ali pošto ovaj
+chart cilja **jedan lokalni klaster** (ne tri odvojena okruženja), razlika je
+namerno tanka — samo `image.tag` (`develop-latest`/`uat-latest`/`main-latest`):
+
+```bash
+helm install greenfinance deploy/helm/greenfinance -f deploy/helm/greenfinance/values-uat.yaml \
+  -n greenfinance --create-namespace
+```
+
+Ovo samo preusmerava tvoj jedan lokalni klaster da pokrene image-e objavljene
+za `uat` granu — ne simulira stvarno odvojenu UAT infrastrukturu.
+
+### Skaliranje (opciono, tek posle DIS-48 fix-a)
+
+Svi business servisi imaju `replicas: 1` po difoltu — namerno, da se izbegne
+poznata EF Core migration rasa kad više replika istog servisa startuje
+istovremeno na praznoj bazi (rešeno u `feature/DIS-48-migration-retry-on-scale`
+kroz retry sa backoff-om na `Database.Migrate()`). Kad je taj fix potvrđeno na
+`develop`-u, bezbedno je povećati replike preko `--set
+services.transaction-service.replicas=3` (K8s Service već radi load balancing
+preko kube-proxy-a, YARP-u nije potrebna sopstvena dinamička LB logika za ovu
+putanju).
+
+### Šta NIJE deo ovog chart-a (namerne odluke)
+
+- **Consul service discovery/mesh** — nativni K8s Service/DNS umesto toga.
+- **Datadog centralizovano logovanje** — drugačiji mehanizam bi bio potreban
+  na K8s-u (zvaničan Datadog Helm chart + Cluster Agent), van obima.
+- **CI/CD automatizacija** — `cd.yml`-ovi "Deploy to DEV/UAT/PROD" koraci
+  ostaju placeholder-i; zamena tih echo koraka sa `helm upgrade --install`
+  pozivima bi bio prirodan sledeći korak, ali nije implementiran ovde.
+
+### Struktura chart-a
+
+`deploy/helm/greenfinance/` — jedan parametrizovan chart: generički
+`app-deployment.yaml`/`app-service.yaml` par (range nad `.Values.services`) za
+5 business servisa, sopstveni template-i za gateway (static YARP
+`ReverseProxy` konfiguracija umesto Consul-a — vidi
+`src/ApiGateway/appsettings.Kubernetes.json`), `StatefulSet` za SQL Server (PVC
+za stvarne aplikacione podatke), plain `Deployment`-i za RabbitMQ/Redis/
+Prometheus/Grafana/MailHog. Prometheus/Grafana provisioning fajlovi su ručno
+mirror-ovani u `deploy/helm/greenfinance/files/` iz `deploy/prometheus.yml` i
+`deploy/grafana/**` (Helm ne može referencirati fajlove van chart
+direktorijuma) — komentari na oba mesta upućuju jedno na drugo; ažuriraj obe
+kopije ako menjaš scrape target-e ili dashboard-e.
