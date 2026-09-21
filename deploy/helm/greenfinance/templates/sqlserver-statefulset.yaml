@@ -32,19 +32,17 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/opt/mssql
+          # $(VAR) substitution only applies to container command/args, NOT to
+          # probe exec commands — passing "$(MSSQL_SA_PASSWORD)" directly as an
+          # argument sends that literal string to sqlcmd as the password. Route
+          # through a real shell instead, which expands $MSSQL_SA_PASSWORD from
+          # its own inherited process environment.
           readinessProbe:
             exec:
               command:
-                - /opt/mssql-tools18/bin/sqlcmd
-                - -S
-                - localhost
-                - -U
-                - sa
-                - -P
-                - "$(MSSQL_SA_PASSWORD)"
-                - -C
-                - -Q
-                - "SELECT 1"
+                - /bin/sh
+                - -c
+                - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "SELECT 1"
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 10
@@ -52,16 +50,9 @@ spec:
           livenessProbe:
             exec:
               command:
-                - /opt/mssql-tools18/bin/sqlcmd
-                - -S
-                - localhost
-                - -U
-                - sa
-                - -P
-                - "$(MSSQL_SA_PASSWORD)"
-                - -C
-                - -Q
-                - "SELECT 1"
+                - /bin/sh
+                - -c
+                - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "SELECT 1"
             periodSeconds: 20
             timeoutSeconds: 5
             failureThreshold: 6
